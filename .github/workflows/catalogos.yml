@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '0 12 * * *'   # 09:00 Santiago (UTC-3)
     - cron: '0 15 * * *'   # 12:00 Santiago (UTC-3)
-  workflow_dispatch:        # Correr manualmente desde GitHub
+  workflow_dispatch:
 
 jobs:
   generar:
@@ -31,7 +31,9 @@ jobs:
 
       - name: Generar y subir catálogos
         env:
-          DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
         run: node generar-catalogos.js
 
       - name: Guardar cache de imágenes
