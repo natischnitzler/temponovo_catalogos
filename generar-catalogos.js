@@ -485,13 +485,13 @@ function renderSubcats(){
     b.className='sub-btn';b.textContent=h;b.dataset.sub=h;
     subcatsEl.appendChild(b);
   });
-  subcatsEl.addEventListener('click',e=>{
+  subcatsEl.onclick=e=>{
     const btn=e.target.closest('.sub-btn');if(!btn)return;
     document.querySelectorAll('.sub-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     subActiva=btn.dataset.sub;
     filtrar();
-  },{once:true});
+  };
 }
 
 document.getElementById('buscador').addEventListener('input',filtrar);
