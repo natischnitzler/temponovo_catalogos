@@ -1,0 +1,14 @@
+{
+  "name": "temponovo-catalogos",
+  "version": "1.0.0",
+  "description": "Generador automático de catálogos PDF → Dropbox",
+  "main": "generar-catalogos.js",
+  "scripts": {
+    "start": "node generar-catalogos.js"
+  },
+  "dependencies": {
+    "pdfkit": "^0.15.0",
+    "axios": "^1.6.0",
+    "xmlrpc": "^1.3.2"
+  }
+}
