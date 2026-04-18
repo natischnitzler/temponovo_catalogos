@@ -87,7 +87,7 @@ const CATALOGOS = [
 // ══════════════════════════════════════════════════════════════════════════════
 function limpiarCodigo(code) {
   if (!code) return '';
-  for (const p of ['RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-']) {
+  for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-']) {
     if (code.startsWith(p)) return code.slice(p.length);
   }
   return code;
@@ -355,11 +355,14 @@ function generarHTML(todos, fecha, hora) {
   const padres = Object.keys(grupos).sort((a,b) => a.localeCompare(b,'es'));
 
   function limpiarCod(c) {
-    for (const p of ['RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-'])
+    for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-'])
       if (c.startsWith(p)) return c.slice(p.length);
     return c;
   }
-  function stockColor(s) { return s < 10 ? 's-red' : s <= 20 ? 's-yellow' : 's-green'; }
+  function stockStyle(s) {
+    const color = s < 10 ? '#c0392b' : s <= 20 ? '#e67e22' : '#1a7a5e';
+    return 'font-size:13px;font-weight:500;min-width:36px;text-align:right;color:' + color;
+  }
   function stockLabel(s) { return s > 100 ? '100+' : String(s); }
 
   let filas = '';
@@ -374,7 +377,7 @@ function generarHTML(todos, fecha, hora) {
         const cod = limpiarCod(p.Default_code || '');
         filas += `<div class="fila" data-cod="${cod.toLowerCase()}">`;
         filas += `<span class="codigo">${cod}</span>`;
-        filas += `<span class="stock-num ${stockColor(p.Stock)}">${stockLabel(p.Stock)}</span>`;
+        filas += `<span style="${stockStyle(p.Stock)}">${stockLabel(p.Stock)}</span>`;
         filas += `</div>`;
       }
     }
@@ -418,7 +421,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .fila{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0}
 .fila:last-child{border-bottom:none}
 .codigo{font-size:13px;font-weight:500;color:#111}
-.stock-num{font-size:13px;font-weight:500;min-width:36px;text-align:right}
+.stock-num{font-size:13px!important;font-weight:500;min-width:36px;text-align:right}
 .s-red{color:#c0392b}
 .s-yellow{color:#e67e22}
 .s-green{color:#1a7a5e}
