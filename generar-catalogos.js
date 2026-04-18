@@ -11,8 +11,11 @@ const fs          = require('fs');
 const path        = require('path');
 const xmlrpc      = require('xmlrpc');
 
-const DROPBOX_TOKEN  = process.env.DROPBOX_TOKEN;
-const DROPBOX_FOLDER = '/Catalogos Temponovo';
+const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN;
+const DROPBOX_APP_KEY       = process.env.DROPBOX_APP_KEY;
+const DROPBOX_APP_SECRET    = process.env.DROPBOX_APP_SECRET;
+const DROPBOX_FOLDER        = '/Catalogos Temponovo';
+let   _dropboxAccessToken   = null;
 const CACHE_PATH     = path.join(__dirname, 'imagenes_cache.json');
 
 const ODOO_URL      = 'https://temponovo.odoo.com';
@@ -23,8 +26,8 @@ const ODOO_PASSWORD = 'Contraodoo94+';
 const HEADER_PATH = path.join(__dirname, 'header.png');
 const HEADER_IMG  = fs.existsSync(HEADER_PATH) ? fs.readFileSync(HEADER_PATH) : null;
 
-if (!DROPBOX_TOKEN) {
-  console.error('❌ Falta DROPBOX_TOKEN');
+if (!DROPBOX_REFRESH_TOKEN || !DROPBOX_APP_KEY || !DROPBOX_APP_SECRET) {
+  console.error('❌ Faltan variables: DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET');
   process.exit(1);
 }
 
@@ -338,12 +341,24 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 // ══════════════════════════════════════════════════════════════════════════════
 // DROPBOX
 // ══════════════════════════════════════════════════════════════════════════════
+async function getDropboxToken() {
+  if (_dropboxAccessToken) return _dropboxAccessToken;
+  const res = await axios.post('https://api.dropbox.com/oauth2/token',
+    `grant_type=refresh_token&refresh_token=${DROPBOX_REFRESH_TOKEN}&client_id=${DROPBOX_APP_KEY}&client_secret=${DROPBOX_APP_SECRET}`,
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  );
+  _dropboxAccessToken = res.data.access_token;
+  console.log('✅ Dropbox token renovado');
+  return _dropboxAccessToken;
+}
+
 async function subirADropbox(buffer, nombreArchivo) {
+  const token = await getDropboxToken();
   const res = await axios.post(
     'https://content.dropboxapi.com/2/files/upload', buffer,
     {
       headers: {
-        'Authorization': `Bearer ${DROPBOX_TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Dropbox-API-Arg': JSON.stringify({
           path: `${DROPBOX_FOLDER}/${nombreArchivo}`,
           mode: 'overwrite', autorename: false, mute: true
