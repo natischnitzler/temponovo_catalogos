@@ -343,37 +343,38 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 // GENERADOR HTML — Consulta de stock para celular
 // ══════════════════════════════════════════════════════════════════════════════
 function generarHTML(todos, fecha, hora) {
-  // Agrupar por categoria padre → subcategoria → productos
   const grupos = {};
   for (const p of todos) {
-    const partes  = p.Category.split('/');
-    const padre   = partes[0].trim();
-    const hijo    = partes[1] ? partes[1].trim() : padre;
+    const pts   = p.Category.split('/');
+    const padre = pts[0].trim();
+    const hijo  = pts[1] ? pts[1].trim() : padre;
     if (!grupos[padre]) grupos[padre] = {};
     if (!grupos[padre][hijo]) grupos[padre][hijo] = [];
     grupos[padre][hijo].push(p);
   }
+  const padres = Object.keys(grupos).sort((a,b) => a.localeCompare(b,'es'));
 
-  // Ordenar todo alfabéticamente
-  const padresOrdenados = Object.keys(grupos).sort((a,b) => a.localeCompare(b,'es'));
+  function limpiarCod(c) {
+    for (const p of ['RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-'])
+      if (c.startsWith(p)) return c.slice(p.length);
+    return c;
+  }
+  function stockColor(s) { return s < 10 ? 's-red' : s <= 20 ? 's-yellow' : 's-green'; }
+  function stockLabel(s) { return s > 100 ? '100+' : String(s); }
 
   let filas = '';
-  for (const padre of padresOrdenados) {
+  for (const padre of padres) {
     const hijos = Object.keys(grupos[padre]).sort((a,b) => a.localeCompare(b,'es'));
-    filas += `<div class="padre" data-padre="${padre}">`;
-    filas += `<div class="padre-label">${padre}</div>`;
-    filas += `<div class="padre-body">`;
+    filas += `<div class="padre" data-padre="${padre}"><div class="padre-label">${padre}</div><div class="padre-body">`;
     for (const hijo of hijos) {
       const prods = grupos[padre][hijo].sort((a,b) =>
-        (a.Default_code||'').localeCompare(b.Default_code||'','es'));
-      filas += `<div class="hijo-label">${hijo}</div>`;
+        limpiarCod(a.Default_code||'').localeCompare(limpiarCod(b.Default_code||''),'es'));
+      filas += `<div class="hijo-label" data-hijo="${hijo}">${hijo}</div>`;
       for (const p of prods) {
-        const codigo = p.Default_code.replace(/^(RL-|QQ-|CC-|ES-|PI-|LI-|CO-|CS-)/, '');
-        const stock  = p.Stock || 0;
-        const zero   = stock === 0 ? ' zero' : '';
-        filas += `<div class="fila${zero}" data-codigo="${codigo.toLowerCase()}" data-padre="${padre.toLowerCase()}" data-hijo="${hijo.toLowerCase()}">`;
-        filas += `<span class="codigo">${codigo}</span>`;
-        filas += `<span class="stock${zero}">${stock}</span>`;
+        const cod = limpiarCod(p.Default_code || '');
+        filas += `<div class="fila" data-cod="${cod.toLowerCase()}">`;
+        filas += `<span class="codigo">${cod}</span>`;
+        filas += `<span class="stock-num ${stockColor(p.Stock)}">${stockLabel(p.Stock)}</span>`;
         filas += `</div>`;
       }
     }
@@ -381,7 +382,8 @@ function generarHTML(todos, fecha, hora) {
   }
 
   const totalProductos = todos.length;
-  const categoriasPadre = padresOrdenados;
+  const catButtons = padres.map(c => `<span class="cat-btn" data-cat="${c}">${c}</span>`).join('');
+  const subDiv = `<div id="subcats"></div>`;
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -401,24 +403,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .search svg{flex-shrink:0;color:#999}
 .search input{border:none;background:none;outline:none;font-size:13px;width:100%;color:#111}
 .search input::placeholder{color:#aaa}
-.cats{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:104px;z-index:8;scrollbar-width:none}
-.cats::-webkit-scrollbar{display:none}
-.cat{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd;background:#f5f5f5;color:#555;white-space:nowrap;cursor:pointer;transition:all .15s}
-.cat.active{background:#1a7a5e;color:#fff;border-color:#1a7a5e}
+#cats{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:104px;z-index:8;scrollbar-width:none}
+#cats::-webkit-scrollbar{display:none}
+#subcats{display:none;gap:6px;overflow-x:auto;padding:6px 12px;background:#f0f8f5;border-bottom:1px solid #c8e6da;position:sticky;top:148px;z-index:7;scrollbar-width:none}
+#subcats::-webkit-scrollbar{display:none}
+.cat-btn{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd;background:#f5f5f5;color:#555;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.cat-btn.active{background:#1a7a5e;color:#fff;border-color:#1a7a5e}
+.sub-btn{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #b0d8c8;background:#fff;color:#1a7a5e;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.sub-btn.active{background:#1a7a5e;color:#fff;border-color:#1a7a5e}
 .content{padding:8px 12px 24px}
-.padre{margin-bottom:4px}
 .padre-label{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.5px;padding:10px 0 4px}
 .padre-body{margin-left:8px;border-left:2px solid #e0e0e0;padding-left:10px}
 .hijo-label{font-size:11px;font-weight:500;color:#1a7a5e;padding:6px 0 3px}
 .fila{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0}
 .fila:last-child{border-bottom:none}
 .codigo{font-size:13px;font-weight:500;color:#111}
-.stock{font-size:18px;font-weight:500;color:#1a7a5e}
-.fila.zero .codigo{color:#bbb}
-.stock.zero{color:#ccc;font-size:16px}
-.footer{text-align:center;padding:12px;font-size:11px;color:#aaa;border-top:1px solid #eee;background:#fff;margin-top:8px}
-.hidden{display:none}
-.no-results{text-align:center;padding:32px 16px;color:#aaa;font-size:14px}
+.stock-num{font-size:13px;font-weight:500;min-width:36px;text-align:right}
+.s-red{color:#c0392b}
+.s-yellow{color:#e67e22}
+.s-green{color:#1a7a5e}
+.footer{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 12px;font-size:11px;color:#888;border-top:1px solid #eee;background:#fff}
+.hidden{display:none!important}
+#no-results{text-align:center;padding:32px 16px;color:#aaa;font-size:14px}
 </style>
 </head>
 <body>
@@ -432,65 +438,92 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <input type="search" id="buscador" placeholder="Buscar por código..." autocomplete="off" autocorrect="off" autocapitalize="off">
   </div>
 </div>
-<div class="cats" id="cats">
-  <span class="cat active" data-cat="todos">Todos</span>
-  ${categoriasPadre.map(c => `<span class="cat" data-cat="${c.toLowerCase()}">${c}</span>`).join('')}
+<div id="cats">
+  <span class="cat-btn active" data-cat="todos">Todos</span>
+  ${catButtons}
 </div>
+<div id="subcats"></div>
 <div class="content" id="content">
   ${filas}
-  <div class="no-results hidden" id="no-results">Sin resultados</div>
+  <div class="hidden" id="no-results">Sin resultados</div>
 </div>
-<div class="footer">Actualizado ${fecha} ${hora} · ${totalProductos} productos</div>
+<div class="footer">
+  <span><span style="color:#c0392b">●</span> &lt;10</span>
+  <span><span style="color:#e67e22">●</span> 10-20</span>
+  <span><span style="color:#1a7a5e">●</span> &gt;20</span>
+  <span style="color:#aaa">· ${fecha} ${hora} · ${totalProductos} productos</span>
+</div>
 <script>
-const buscador = document.getElementById('buscador');
-const content  = document.getElementById('content');
-const noRes    = document.getElementById('no-results');
-let catActiva  = 'todos';
+let catActiva='todos', subActiva='todos';
+const subcatsEl=document.getElementById('subcats');
+const grupos=${JSON.stringify(Object.fromEntries(padres.map(p=>[p,Object.keys(grupos[p])])))} ;
 
-document.getElementById('cats').addEventListener('click', e => {
-  const btn = e.target.closest('.cat');
-  if (!btn) return;
-  document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
+document.getElementById('cats').addEventListener('click',e=>{
+  const btn=e.target.closest('.cat-btn');if(!btn)return;
+  document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  catActiva = btn.dataset.cat;
+  catActiva=btn.dataset.cat;
+  subActiva='todos';
+  renderSubcats();
   filtrar();
 });
 
-buscador.addEventListener('input', filtrar);
-
-function filtrar() {
-  const q = buscador.value.toLowerCase().trim();
-  let visible = 0;
-
-  document.querySelectorAll('.padre').forEach(padre => {
-    const padreKey = padre.dataset.padre.toLowerCase();
-    const matchCat = catActiva === 'todos' || padreKey === catActiva;
-    if (!matchCat) { padre.classList.add('hidden'); return; }
-
-    let padreVisible = false;
-    padre.querySelectorAll('.fila').forEach(fila => {
-      const matchQ = !q || fila.dataset.codigo.includes(q);
-      fila.classList.toggle('hidden', !matchQ);
-      if (matchQ) { padreVisible = true; visible++; }
-    });
-
-    // Mostrar/ocultar hijo-labels sin productos visibles
-    let lastHijo = null;
-    padre.querySelectorAll('.hijo-label, .fila').forEach(el => {
-      if (el.classList.contains('hijo-label')) {
-        lastHijo = el;
-        lastHijo.classList.add('hidden');
-      } else if (!el.classList.contains('hidden') && lastHijo) {
-        lastHijo.classList.remove('hidden');
-      }
-    });
-
-    padre.classList.toggle('hidden', !padreVisible);
+function renderSubcats(){
+  subcatsEl.innerHTML='';
+  if(catActiva==='todos'){subcatsEl.style.display='none';return;}
+  const hijos=(grupos[catActiva]||[]).sort((a,b)=>a.localeCompare(b,'es'));
+  if(hijos.length<=1){subcatsEl.style.display='none';return;}
+  subcatsEl.style.display='flex';
+  const t=document.createElement('span');
+  t.className='sub-btn active';t.textContent='Todos';t.dataset.sub='todos';
+  subcatsEl.appendChild(t);
+  hijos.forEach(h=>{
+    const b=document.createElement('span');
+    b.className='sub-btn';b.textContent=h;b.dataset.sub=h;
+    subcatsEl.appendChild(b);
   });
-
-  noRes.classList.toggle('hidden', visible > 0 || (!q && catActiva === 'todos'));
+  subcatsEl.addEventListener('click',e=>{
+    const btn=e.target.closest('.sub-btn');if(!btn)return;
+    document.querySelectorAll('.sub-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    subActiva=btn.dataset.sub;
+    filtrar();
+  },{once:true});
 }
-</script>
+
+document.getElementById('buscador').addEventListener('input',filtrar);
+
+function filtrar(){
+  const q=document.getElementById('buscador').value.toLowerCase().trim();
+  let visible=0;
+  document.querySelectorAll('.padre').forEach(padreEl=>{
+    const matchCat=catActiva==='todos'||padreEl.dataset.padre===catActiva;
+    if(!matchCat){padreEl.classList.add('hidden');return;}
+    padreEl.classList.remove('hidden');
+    let padreVis=false;
+    padreEl.querySelectorAll('.hijo-label').forEach(hl=>{
+      const matchSub=subActiva==='todos'||hl.dataset.hijo===subActiva;
+      if(!matchSub){
+        hl.classList.add('hidden');
+        let el=hl.nextElementSibling;
+        while(el&&el.classList.contains('fila')){el.classList.add('hidden');el=el.nextElementSibling;}
+        return;
+      }
+      let hijoVis=false;
+      let el=hl.nextElementSibling;
+      while(el&&el.classList.contains('fila')){
+        const match=!q||el.dataset.cod.includes(q);
+        el.classList.toggle('hidden',!match);
+        if(match){hijoVis=true;padreVis=true;visible++;}
+        el=el.nextElementSibling;
+      }
+      hl.classList.toggle('hidden',!hijoVis);
+    });
+    padreEl.classList.toggle('hidden',!padreVis);
+  });
+  document.getElementById('no-results').classList.toggle('hidden',visible>0||(!q&&catActiva==='todos'));
+}
+<\/script>
 </body>
 </html>`;
 }
