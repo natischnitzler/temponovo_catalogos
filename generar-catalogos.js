@@ -338,6 +338,163 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
   return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GENERADOR HTML — Consulta de stock para celular
+// ══════════════════════════════════════════════════════════════════════════════
+function generarHTML(todos, fecha, hora) {
+  // Agrupar por categoria padre → subcategoria → productos
+  const grupos = {};
+  for (const p of todos) {
+    const partes  = p.Category.split('/');
+    const padre   = partes[0].trim();
+    const hijo    = partes[1] ? partes[1].trim() : padre;
+    if (!grupos[padre]) grupos[padre] = {};
+    if (!grupos[padre][hijo]) grupos[padre][hijo] = [];
+    grupos[padre][hijo].push(p);
+  }
+
+  // Ordenar todo alfabéticamente
+  const padresOrdenados = Object.keys(grupos).sort((a,b) => a.localeCompare(b,'es'));
+
+  let filas = '';
+  for (const padre of padresOrdenados) {
+    const hijos = Object.keys(grupos[padre]).sort((a,b) => a.localeCompare(b,'es'));
+    filas += `<div class="padre" data-padre="${padre}">`;
+    filas += `<div class="padre-label">${padre}</div>`;
+    filas += `<div class="padre-body">`;
+    for (const hijo of hijos) {
+      const prods = grupos[padre][hijo].sort((a,b) =>
+        (a.Default_code||'').localeCompare(b.Default_code||'','es'));
+      filas += `<div class="hijo-label">${hijo}</div>`;
+      for (const p of prods) {
+        const codigo = p.Default_code.replace(/^(RL-|QQ-|CC-|ES-|PI-|LI-|CO-|CS-)/, '');
+        const stock  = p.Stock || 0;
+        const zero   = stock === 0 ? ' zero' : '';
+        filas += `<div class="fila${zero}" data-codigo="${codigo.toLowerCase()}" data-padre="${padre.toLowerCase()}" data-hijo="${hijo.toLowerCase()}">`;
+        filas += `<span class="codigo">${codigo}</span>`;
+        filas += `<span class="stock${zero}">${stock}</span>`;
+        filas += `</div>`;
+      }
+    }
+    filas += `</div></div>`;
+  }
+
+  const totalProductos = todos.length;
+  const categoriasPadre = padresOrdenados;
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Stock Temponovo</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#111}
+.header{background:#1a7a5e;color:#fff;padding:12px 16px;position:sticky;top:0;z-index:10}
+.header small{font-size:11px;opacity:.7;display:block;margin-bottom:2px}
+.header h1{font-size:17px;font-weight:500}
+.search-wrap{padding:10px 12px;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:52px;z-index:9}
+.search{display:flex;align-items:center;gap:8px;background:#f5f5f5;border-radius:8px;padding:7px 10px;border:1px solid #e0e0e0}
+.search svg{flex-shrink:0;color:#999}
+.search input{border:none;background:none;outline:none;font-size:13px;width:100%;color:#111}
+.search input::placeholder{color:#aaa}
+.cats{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:104px;z-index:8;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid #ddd;background:#f5f5f5;color:#555;white-space:nowrap;cursor:pointer;transition:all .15s}
+.cat.active{background:#1a7a5e;color:#fff;border-color:#1a7a5e}
+.content{padding:8px 12px 24px}
+.padre{margin-bottom:4px}
+.padre-label{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.5px;padding:10px 0 4px}
+.padre-body{margin-left:8px;border-left:2px solid #e0e0e0;padding-left:10px}
+.hijo-label{font-size:11px;font-weight:500;color:#1a7a5e;padding:6px 0 3px}
+.fila{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0}
+.fila:last-child{border-bottom:none}
+.codigo{font-size:13px;font-weight:500;color:#111}
+.stock{font-size:18px;font-weight:500;color:#1a7a5e}
+.fila.zero .codigo{color:#bbb}
+.stock.zero{color:#ccc;font-size:16px}
+.footer{text-align:center;padding:12px;font-size:11px;color:#aaa;border-top:1px solid #eee;background:#fff;margin-top:8px}
+.hidden{display:none}
+.no-results{text-align:center;padding:32px 16px;color:#aaa;font-size:14px}
+</style>
+</head>
+<body>
+<div class="header">
+  <small>TEMPONOVO</small>
+  <h1>Consulta de stock</h1>
+</div>
+<div class="search-wrap">
+  <div class="search">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="search" id="buscador" placeholder="Buscar por código..." autocomplete="off" autocorrect="off" autocapitalize="off">
+  </div>
+</div>
+<div class="cats" id="cats">
+  <span class="cat active" data-cat="todos">Todos</span>
+  ${categoriasPadre.map(c => `<span class="cat" data-cat="${c.toLowerCase()}">${c}</span>`).join('')}
+</div>
+<div class="content" id="content">
+  ${filas}
+  <div class="no-results hidden" id="no-results">Sin resultados</div>
+</div>
+<div class="footer">Actualizado ${fecha} ${hora} · ${totalProductos} productos</div>
+<script>
+const buscador = document.getElementById('buscador');
+const content  = document.getElementById('content');
+const noRes    = document.getElementById('no-results');
+let catActiva  = 'todos';
+
+document.getElementById('cats').addEventListener('click', e => {
+  const btn = e.target.closest('.cat');
+  if (!btn) return;
+  document.querySelectorAll('.cat').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  catActiva = btn.dataset.cat;
+  filtrar();
+});
+
+buscador.addEventListener('input', filtrar);
+
+function filtrar() {
+  const q = buscador.value.toLowerCase().trim();
+  let visible = 0;
+
+  document.querySelectorAll('.padre').forEach(padre => {
+    const padreKey = padre.dataset.padre.toLowerCase();
+    const matchCat = catActiva === 'todos' || padreKey === catActiva;
+    if (!matchCat) { padre.classList.add('hidden'); return; }
+
+    let padreVisible = false;
+    padre.querySelectorAll('.fila').forEach(fila => {
+      const matchQ = !q || fila.dataset.codigo.includes(q);
+      fila.classList.toggle('hidden', !matchQ);
+      if (matchQ) { padreVisible = true; visible++; }
+    });
+
+    // Mostrar/ocultar hijo-labels sin productos visibles
+    let lastHijo = null;
+    padre.querySelectorAll('.hijo-label, .fila').forEach(el => {
+      if (el.classList.contains('hijo-label')) {
+        lastHijo = el;
+        lastHijo.classList.add('hidden');
+      } else if (!el.classList.contains('hidden') && lastHijo) {
+        lastHijo.classList.remove('hidden');
+      }
+    });
+
+    padre.classList.toggle('hidden', !padreVisible);
+  });
+
+  noRes.classList.toggle('hidden', visible > 0 || (!q && catActiva === 'todos'));
+}
+</script>
+</body>
+</html>`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // DROPBOX
 // ══════════════════════════════════════════════════════════════════════════════
@@ -444,6 +601,20 @@ async function main() {
     } catch(err) {
       console.error(`  ❌ ${err.response?.data?.error_summary || err.message}`);
       resultados.error.push({ archivo: cat.archivo, error: err.message });
+    }
+  }
+
+  // 6. Generar y subir HTML de consulta de stock
+  if (!filtroArg) {
+    console.log('\n📱 Generando consulta de stock HTML...');
+    try {
+      const fecha = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'2-digit',year:'numeric'});
+      const hora  = new Date().toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
+      const html  = generarHTML(todos, fecha, hora);
+      await subirADropbox(Buffer.from(html, 'utf8'), 'Stock_Temponovo.html');
+      console.log('  ✅ Stock_Temponovo.html subido a Dropbox');
+    } catch(err) {
+      console.error('  ❌ Error generando HTML:', err.message);
     }
   }
 
