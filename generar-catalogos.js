@@ -18,6 +18,11 @@ const DROPBOX_FOLDER        = '/Catalogos Temponovo';
 let   _dropboxAccessToken   = null;
 const CACHE_PATH     = path.join(__dirname, 'imagenes_cache.json');
 
+const GH_TOKEN      = process.env.GH_TOKEN_RELEASES;
+const GH_REPO_OWNER = process.env.GH_REPO_OWNER || 'natischnitzler';
+const GH_REPO_NAME  = process.env.GH_REPO_NAME  || 'temponovo-catalogos';
+const GH_RELEASE_TAG = 'catalogos-latest';
+
 const ODOO_URL      = 'https://temponovo.odoo.com';
 const ODOO_DB       = 'cmcorpcl-temponovo-main-24490235';
 const ODOO_USERNAME = 'natalia@temponovo.cl';
@@ -589,6 +594,63 @@ async function obtenerLinkCompartido(nombreArchivo) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GITHUB RELEASES
+// ══════════════════════════════════════════════════════════════════════════════
+async function githubReleaseId() {
+  try {
+    const res = await axios.get(
+      `https://api.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/tags/${GH_RELEASE_TAG}`,
+      { headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: 'application/vnd.github+json' } }
+    );
+    return res.data.id;
+  } catch(e) {
+    if (e.response?.status === 404) {
+      const res = await axios.post(
+        `https://api.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases`,
+        { tag_name: GH_RELEASE_TAG, name: 'Catálogos Temponovo', body: 'PDFs generados automáticamente', draft: false, prerelease: false },
+        { headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: 'application/vnd.github+json' } }
+      );
+      return res.data.id;
+    }
+    throw e;
+  }
+}
+
+async function subirAGithub(buffer, nombreArchivo, releaseId) {
+  // Borrar asset anterior si existe
+  try {
+    const assets = await axios.get(
+      `https://api.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/${releaseId}/assets`,
+      { headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: 'application/vnd.github+json' } }
+    );
+    const existing = assets.data.find(a => a.name === nombreArchivo);
+    if (existing) {
+      await axios.delete(
+        `https://api.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/assets/${existing.id}`,
+        { headers: { Authorization: `Bearer ${GH_TOKEN}`, Accept: 'application/vnd.github+json' } }
+      );
+    }
+  } catch(e) {}
+
+  // Subir nuevo asset
+  const res = await axios.post(
+    `https://uploads.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/${releaseId}/assets?name=${encodeURIComponent(nombreArchivo)}`,
+    buffer,
+    {
+      headers: {
+        Authorization: `Bearer ${GH_TOKEN}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/pdf',
+        'Content-Length': buffer.length,
+      },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    }
+  );
+  return res.data.browser_download_url;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
 async function main() {
@@ -638,6 +700,16 @@ async function main() {
   // 5. Generar y subir PDFs
   const resultados = { ok: [], error: [] };
   const links = {};
+
+  let releaseId = null;
+  if (GH_TOKEN) {
+    try {
+      releaseId = await githubReleaseId();
+      console.log(`🐙 GitHub Release ID: ${releaseId}`);
+    } catch(e) {
+      console.log(`⚠️  No se pudo conectar a GitHub Releases: ${e.message}`);
+    }
+  }
 
   for (const cat of catalogos) {
     console.log(`\n📄 ${cat.archivo}`);
