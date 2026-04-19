@@ -4,6 +4,12 @@
 //      DROPBOX_TOKEN=xxx node generar-catalogos.js "Gshock"
 // ══════════════════════════════════════════════════════════════════════════════
 
+process.on('uncaughtException', err => {
+  if (err.code === 'EPIPE') return;
+  console.error('Uncaught:', err.message);
+  process.exit(1);
+});
+
 const PDFDocument = require('pdfkit');
 const axios       = require('axios');
 const https       = require('https');
