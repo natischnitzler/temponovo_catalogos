@@ -617,6 +617,8 @@ async function githubReleaseId() {
 }
 
 async function subirAGithub(buffer, nombreArchivo, releaseId) {
+  const nombreLimpio = nombreArchivo.replace(/\s+/g, '_');
+  nombreArchivo = nombreLimpio;
   // Borrar asset anterior si existe
   try {
     const assets = await axios.get(
@@ -737,14 +739,19 @@ async function main() {
         console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
       }
 
-      // GitHub Releases
+      // GitHub Releases (solo archivos < 50MB)
       if (GH_TOKEN && releaseId) {
-        try {
-          const url = await subirAGithub(buffer, cat.archivo, releaseId);
-          links[cat.archivo] = url;
-          console.log(`  🐙 GitHub: ${url}`);
-        } catch(ge) {
-          console.log(`  ⚠️  GitHub: ${ge.response?.data?.message || ge.message}`);
+        const mb = buffer.length / 1024 / 1024;
+        if (mb > 50) {
+          console.log(`  ⏭  GitHub: saltando (${mb.toFixed(0)}MB > 50MB)`);
+        } else {
+          try {
+            const url = await subirAGithub(buffer, cat.archivo, releaseId);
+            links[cat.archivo] = url;
+            console.log(`  🐙 GitHub: ${url}`);
+          } catch(ge) {
+            console.log(`  ⚠️  GitHub: ${ge.response?.data?.message || ge.message}`);
+          }
         }
       }
 
