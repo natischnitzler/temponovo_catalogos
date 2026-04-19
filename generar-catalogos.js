@@ -619,6 +619,7 @@ async function githubReleaseId() {
 async function subirAGithub(buffer, nombreArchivo, releaseId) {
   const nombreLimpio = nombreArchivo.replace(/\s+/g, '_');
   nombreArchivo = nombreLimpio;
+
   // Borrar asset anterior si existe
   try {
     const assets = await axios.get(
@@ -634,22 +635,28 @@ async function subirAGithub(buffer, nombreArchivo, releaseId) {
     }
   } catch(e) {}
 
-  // Subir nuevo asset
-  const res = await axios.post(
-    `https://uploads.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/${releaseId}/assets?name=${encodeURIComponent(nombreArchivo)}`,
-    buffer,
-    {
-      headers: {
-        Authorization: `Bearer ${GH_TOKEN}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': nombreArchivo.endsWith('.json') ? 'application/json' : 'application/pdf',
-        'Content-Length': buffer.length,
-      },
-      maxBodyLength: Infinity,
-      maxContentLength: Infinity,
-    }
-  );
-  return res.data.browser_download_url;
+  // Subir con fetch nativo (más estable para buffers grandes)
+  const { default: nodeFetch } = await import('node-fetch');
+  const contentType = nombreArchivo.endsWith('.json') ? 'application/json' : 'application/octet-stream';
+  const uploadUrl = `https://uploads.github.com/repos/${GH_REPO_OWNER}/${GH_REPO_NAME}/releases/${releaseId}/assets?name=${encodeURIComponent(nombreArchivo)}`;
+
+  const res = await nodeFetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GH_TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': contentType,
+      'Content-Length': String(buffer.length),
+    },
+    body: buffer,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.browser_download_url;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
