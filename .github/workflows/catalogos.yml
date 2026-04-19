@@ -1,41 +1,36 @@
 name: Generar Catálogos PDF
-
 on:
   schedule:
     - cron: '0 12 * * *'   # 09:00 Santiago (UTC-3)
     - cron: '0 15 * * *'   # 12:00 Santiago (UTC-3)
   workflow_dispatch:
-
 jobs:
   generar:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Restaurar cache de imágenes
         uses: actions/cache@v4
         with:
           path: imagenes_cache.json
           key: imagenes-cache-${{ runner.os }}
           restore-keys: imagenes-cache-
-
       - name: Instalar dependencias
         run: npm install
-
       - name: Generar y subir catálogos
         env:
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
           DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
           DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
         run: node generar-catalogos.js
-
       - name: Guardar cache de imágenes
         uses: actions/cache/save@v4
         if: always()
