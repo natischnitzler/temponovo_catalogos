@@ -640,7 +640,7 @@ async function subirAGithub(buffer, nombreArchivo, releaseId) {
       headers: {
         Authorization: `Bearer ${GH_TOKEN}`,
         Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/pdf',
+        'Content-Type': nombreArchivo.endsWith('.json') ? 'application/json' : 'application/pdf',
         'Content-Length': buffer.length,
       },
       maxBodyLength: Infinity,
@@ -773,6 +773,17 @@ async function main() {
   const linksPath = require('path').join(__dirname, 'catalogos_links.json');
   fs.writeFileSync(linksPath, JSON.stringify(links, null, 2));
   console.log(`\n📋 Links guardados en catalogos_links.json (${Object.keys(links).length} catálogos)`);
+
+  // Subir catalogos_links.json al release de GitHub
+  if (GH_TOKEN && releaseId) {
+    try {
+      const jsonBuffer = fs.readFileSync(linksPath);
+      const jsonUrl = await subirAGithub(jsonBuffer, 'catalogos_links.json', releaseId);
+      console.log(`  🐙 JSON subido: ${jsonUrl}`);
+    } catch(e) {
+      console.log(`  ⚠️  No se pudo subir el JSON: ${e.message}`);
+    }
+  }
 
   console.log('\n══════════════════════════════════════════════');
   console.log(`✅ OK: ${resultados.ok.length} | ❌ Errores: ${resultados.error.length}`);
