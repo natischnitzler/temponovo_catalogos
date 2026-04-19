@@ -27,9 +27,9 @@ jobs:
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
           DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
           DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
-          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
-          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          GH_TOKEN_RELEASES: ${{ secrets.GH_TOKEN_RELEASES }}
+          GH_REPO_OWNER: natischnitzler
+          GH_REPO_NAME: temponovo_catalogos
         run: node generar-catalogos.js
       - name: Guardar cache de imágenes
         uses: actions/cache/save@v4
