@@ -47,7 +47,7 @@ if (!DROPBOX_REFRESH_TOKEN || !DROPBOX_APP_KEY || !DROPBOX_APP_SECRET) {
 // ══════════════════════════════════════════════════════════════════════════════
 const CATALOGOS = [
   {
-    archivo: 'Catalogo_Relojes _Casio _Completo.pdf',
+    archivo: 'Catalogo_Relojes_Casio_Completo.pdf',
     categorias: ['Relojes Casio / Clasico','Relojes Casio / Despertadores','Relojes Casio / Edifice','Relojes Casio / G-Shock','Relojes Casio / Murales y Crono','Relojes Casio / Protex'],
     orden: 'categoria',
   },
@@ -66,7 +66,7 @@ const CATALOGOS = [
   { archivo: 'Catalogo_Relojes_Casio_Despertadores.pdf', categorias: ['Relojes Casio / Despertadores'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_EdificeyDuro.pdf', categorias: ['Relojes Casio / Edifice','Relojes Casio / G-Shock'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_Gshock.pdf', categorias: ['Relojes Casio / G-Shock'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_Murales y Crono.pdf', categorias: ['Relojes Casio / Murales y Crono'], orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_Murales_y_Crono.pdf', categorias: ['Relojes Casio / Murales y Crono'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_Protreck.pdf', categorias: ['Relojes Casio / Protex'], orden: 'categoria' },
   {
     archivo: 'Catalogo_Relojes_QQ_Alfabeto.pdf',
@@ -74,18 +74,18 @@ const CATALOGOS = [
     orden: 'alfabetico',
   },
   {
-    archivo: 'Catalogo_Relojes_QQ Familia.pdf',
+    archivo: 'Catalogo_Relojes_QQ_Familia.pdf',
     categorias: ['Relojes QQ / Cronografos','Relojes QQ / Dama Cuero','Relojes QQ / Dama Digital','Relojes QQ / Dama Metal','Relojes QQ / Dama Resina','Relojes QQ / Niño','Relojes QQ / Smart Watch','Relojes QQ / Varon Cuero','Relojes QQ / Varon Digital','Relojes QQ / Varon Metal','Relojes QQ / Varon Resina'],
     orden: 'categoria',
   },
-  { archivo: 'Catalogo Relojes Guess.pdf', categorias: ['Relojes Guess / Dama','Relojes Guess / Varon'], orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Guess.pdf', categorias: ['Relojes Guess / Dama','Relojes Guess / Varon'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Suizos.pdf', categorias: ['Relojes Suizo / Dama','Relojes Suizo / Varon'], orden: 'categoria' },
   { archivo: 'Catalogo_RelojesEconomicos.pdf', categorias: ['Relojes Económicos / Despertadores','Relojes Económicos / Modulos','Relojes Económicos / Murales'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Timesonic.pdf', categorias: ['Relojes Murales / Relojes Timesonic'], orden: 'categoria' },
   { archivo: 'Catalogo_Calculadoras_Casio.pdf', categorias: ['Calculadoras Casio / Cientifica','Calculadoras Casio / Escritorio','Calculadoras Casio / Financieras y graficas','Calculadoras Casio / Portatiles','Calculadoras Casio / Rollo','Calculadoras Casio / Suplementos'], orden: 'categoria' },
   { archivo: 'Catalogo_Calculadoras_Economicas.pdf', categorias: ['Calculadoras Económicas / Calculadora Bolsillo','Calculadoras Económicas / Calculadora Cientifica','Calculadoras Económicas / Calculadora Doble Visor','Calculadoras Económicas / Calculadora Escritorio'], orden: 'categoria' },
-  { archivo: 'Catalogo_Correas de Cuero.pdf', categorias: ['Correas / Correas para Reloj de Cuero'], orden: 'categoria' },
-  { archivo: 'Catalogo_Correas PU.pdf', categorias: ['Correas / Correas para Reloj PU'], orden: 'categoria' },
+  { archivo: 'Catalogo_Correas_de_Cuero.pdf', categorias: ['Correas / Correas para Reloj de Cuero'], orden: 'categoria' },
+  { archivo: 'Catalogo_Correas_PU.pdf', categorias: ['Correas / Correas para Reloj PU'], orden: 'categoria' },
   { archivo: 'Catalogo_Estuches_Joyas.pdf', categorias: ['Estuches / Capricho','Estuches / Creta','Estuches / Madera','Estuches / Marina','Estuches / Milos','Estuches / Nature','Estuches / Roma','Estuches / Targa','Estuches / Termal','Estuches / Yuppie','Estuches / Zante'], orden: 'categoria' },
   { archivo: 'Catalogo_LimpiezaJoyas.pdf', categorias: ['Limpieza / Limpieza Connoisseurs'], orden: 'categoria' },
   { archivo: 'Catalogo_Pilas_De_Reloj.pdf', categorias: ['Pilas / Alcalinas','Pilas / Litio','Pilas / Oxido de Plata','Pilas / Zinc'], orden: 'categoria' },
@@ -752,18 +752,21 @@ async function main() {
         console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
       }
 
-      // GitHub Releases (solo archivos < 50MB)
+      // GitHub Releases (solo archivos < 50MB y sin espacios)
       if (GH_TOKEN && releaseId) {
         const mb = buffer.length / 1024 / 1024;
+        const tieneEspacios = cat.archivo.includes(' ');
         if (mb > 50) {
           console.log(`  ⏭  GitHub: saltando (${mb.toFixed(0)}MB > 50MB)`);
+        } else if (tieneEspacios) {
+          console.log(`  ⏭  GitHub: saltando (nombre con espacios)`);
         } else {
           try {
             const url = await subirAGithub(buffer, cat.archivo, releaseId);
             links[cat.archivo] = url;
             console.log(`  🐙 GitHub: ${url}`);
           } catch(ge) {
-            console.log(`  ⚠️  GitHub: ${ge.response?.data?.message || ge.message}`);
+            console.log(`  ⚠️  GitHub: ${ge.message}`);
           }
         }
       }
