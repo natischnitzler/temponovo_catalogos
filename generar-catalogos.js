@@ -728,13 +728,26 @@ async function main() {
     try {
       const buffer = await generarPDF(cat.archivo, prods, cat.orden, caracteristicas, cache);
       console.log(`  ✅ PDF: ${(buffer.length/1024).toFixed(0)} KB`);
-      const result = await subirADropbox(buffer, cat.archivo);
-      console.log(`  ☁️  Dropbox: ${result.path_display}`);
-      const link = await obtenerLinkCompartido(cat.archivo);
-      if (link) {
-        links[cat.archivo] = link;
-        console.log(`  🔗 Link: ${link}`);
+
+      // Dropbox — opcional, no bloquea si falla
+      try {
+        const result = await subirADropbox(buffer, cat.archivo);
+        console.log(`  ☁️  Dropbox: ${result.path_display}`);
+      } catch(de) {
+        console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
       }
+
+      // GitHub Releases
+      if (GH_TOKEN && releaseId) {
+        try {
+          const url = await subirAGithub(buffer, cat.archivo, releaseId);
+          links[cat.archivo] = url;
+          console.log(`  🐙 GitHub: ${url}`);
+        } catch(ge) {
+          console.log(`  ⚠️  GitHub: ${ge.response?.data?.message || ge.message}`);
+        }
+      }
+
       resultados.ok.push(cat.archivo);
     } catch(err) {
       console.error(`  ❌ ${err.response?.data?.error_summary || err.message}`);
