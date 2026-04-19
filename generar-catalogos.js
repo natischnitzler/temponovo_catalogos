@@ -564,6 +564,30 @@ async function subirADropbox(buffer, nombreArchivo) {
   return res.data;
 }
 
+async function obtenerLinkCompartido(nombreArchivo) {
+  const token = await getDropboxToken();
+  const path = `${DROPBOX_FOLDER}/${nombreArchivo}`;
+  try {
+    const res = await axios.post(
+      'https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings',
+      { path, settings: { requested_visibility: 'public' } },
+      { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    );
+    return res.data.url.replace('?dl=0', '?dl=1');
+  } catch (err) {
+    if (err.response?.data?.error?.['.tag'] === 'shared_link_already_exists') {
+      const res2 = await axios.post(
+        'https://api.dropboxapi.com/2/sharing/list_shared_links',
+        { path },
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+      );
+      const link = res2.data.links?.[0]?.url;
+      return link ? link.replace('?dl=0', '?dl=1') : null;
+    }
+    throw err;
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════════════════
@@ -613,6 +637,7 @@ async function main() {
 
   // 5. Generar y subir PDFs
   const resultados = { ok: [], error: [] };
+  const links = {};
 
   for (const cat of catalogos) {
     console.log(`\n📄 ${cat.archivo}`);
@@ -633,6 +658,11 @@ async function main() {
       console.log(`  ✅ PDF: ${(buffer.length/1024).toFixed(0)} KB`);
       const result = await subirADropbox(buffer, cat.archivo);
       console.log(`  ☁️  Dropbox: ${result.path_display}`);
+      const link = await obtenerLinkCompartido(cat.archivo);
+      if (link) {
+        links[cat.archivo] = link;
+        console.log(`  🔗 Link: ${link}`);
+      }
       resultados.ok.push(cat.archivo);
     } catch(err) {
       console.error(`  ❌ ${err.response?.data?.error_summary || err.message}`);
@@ -653,6 +683,11 @@ async function main() {
       console.error('  ❌ Error generando HTML:', err.message);
     }
   }
+
+  // Guardar links en JSON para el bot de WhatsApp
+  const linksPath = require('path').join(__dirname, 'catalogos_links.json');
+  fs.writeFileSync(linksPath, JSON.stringify(links, null, 2));
+  console.log(`\n📋 Links guardados en catalogos_links.json (${Object.keys(links).length} catálogos)`);
 
   console.log('\n══════════════════════════════════════════════');
   console.log(`✅ OK: ${resultados.ok.length} | ❌ Errores: ${resultados.error.length}`);
