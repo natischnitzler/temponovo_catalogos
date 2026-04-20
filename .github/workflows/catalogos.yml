@@ -20,13 +20,12 @@ jobs:
           path: imagenes_cache.json
           key: imagenes-cache-${{ runner.os }}
           restore-keys: imagenes-cache-
+      - name: Instalar ghostscript
+        run: sudo apt-get install -y ghostscript
       - name: Instalar dependencias
         run: npm install
       - name: Generar y subir catálogos
         env:
-          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
-          DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-          DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
           GH_TOKEN_RELEASES: ${{ secrets.GH_TOKEN_RELEASES }}
           GH_REPO_OWNER: natischnitzler
           GH_REPO_NAME: temponovo_catalogos
