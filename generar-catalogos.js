@@ -38,8 +38,7 @@ const HEADER_PATH = path.join(__dirname, 'header.png');
 const HEADER_IMG  = fs.existsSync(HEADER_PATH) ? fs.readFileSync(HEADER_PATH) : null;
 
 if (!DROPBOX_REFRESH_TOKEN || !DROPBOX_APP_KEY || !DROPBOX_APP_SECRET) {
-  console.error('❌ Faltan variables: DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET');
-  process.exit(1);
+  console.warn('⚠️  Sin credenciales Dropbox — se saltará la subida a Dropbox');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
