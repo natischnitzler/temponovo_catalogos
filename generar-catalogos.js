@@ -600,6 +600,35 @@ async function obtenerLinkCompartido(nombreArchivo) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// COMPRESION PDF (solo para GitHub/WhatsApp)
+// ══════════════════════════════════════════════════════════════════════════════
+const { execSync } = require('child_process');
+const os = require('os');
+
+function comprimirPDF(buffer) {
+  const tmpIn  = path.join(os.tmpdir(), `in_${Date.now()}.pdf`);
+  const tmpOut = path.join(os.tmpdir(), `out_${Date.now()}.pdf`);
+  try {
+    fs.writeFileSync(tmpIn, buffer);
+    execSync(
+      `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile=${tmpOut} ${tmpIn}`,
+      { timeout: 180000 }
+    );
+    const compressed = fs.readFileSync(tmpOut);
+    const orig = (buffer.length/1024/1024).toFixed(1);
+    const comp = (compressed.length/1024/1024).toFixed(1);
+    console.log(`  🗜  ${orig}MB → ${comp}MB`);
+    return compressed;
+  } catch(e) {
+    console.log(`  ⚠️  Compresion fallida: ${e.message}`);
+    return buffer;
+  } finally {
+    try { fs.unlinkSync(tmpIn); } catch(e) {}
+    try { fs.unlinkSync(tmpOut); } catch(e) {}
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GITHUB RELEASES
 // ══════════════════════════════════════════════════════════════════════════════
 async function githubReleaseId() {
@@ -752,7 +781,7 @@ async function main() {
         console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
       }
 
-      // GitHub Releases (solo archivos < 50MB y sin espacios)
+      // GitHub Releases — comprimir si pesa mas de 15MB
       if (GH_TOKEN && releaseId) {
         const mb = buffer.length / 1024 / 1024;
         const tieneEspacios = cat.archivo.includes(' ');
@@ -762,7 +791,8 @@ async function main() {
           console.log(`  ⏭  GitHub: saltando (nombre con espacios)`);
         } else {
           try {
-            const url = await subirAGithub(buffer, cat.archivo, releaseId);
+            const bufferGH = mb > 15 ? comprimirPDF(buffer) : buffer;
+            const url = await subirAGithub(bufferGH, cat.archivo, releaseId);
             links[cat.archivo] = url;
             console.log(`  🐙 GitHub: ${url}`);
           } catch(ge) {
