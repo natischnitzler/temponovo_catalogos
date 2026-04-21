@@ -63,7 +63,7 @@ const CATALOGOS = [
     filtro: p => limpiarCodigo(p.Default_code).toUpperCase() >= 'M',
   },
   { archivo: 'Catalogo_Relojes_Casio_Despertadores.pdf', categorias: ['Relojes Casio / Despertadores'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_EdificeyDuro.pdf', categorias: ['Relojes Casio / Edifice','Relojes Casio / G-Shock'], orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_EdificeyDuro.pdf', categorias: ['Relojes Casio / Edifice'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_Gshock.pdf', categorias: ['Relojes Casio / G-Shock'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_Murales_y_Crono.pdf', categorias: ['Relojes Casio / Murales y Crono'], orden: 'categoria' },
   { archivo: 'Catalogo_Relojes_Casio_Protreck.pdf', categorias: ['Relojes Casio / Protex'], orden: 'categoria' },
@@ -97,7 +97,7 @@ const CATALOGOS = [
 // ══════════════════════════════════════════════════════════════════════════════
 function limpiarCodigo(code) {
   if (!code) return '';
-  for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-']) {
+  for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-','ZI-']) {
     if (code.startsWith(p)) return code.slice(p.length);
   }
   return code;
@@ -252,7 +252,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
   const fecha = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'2-digit',year:'numeric'});
   const hora  = new Date().toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'});
 
-  function drawHeader() {
+  function drawHeader(subtitulo) {
     doc.addPage();
     const hdrTop = 3 * MM;
     if (HEADER_IMG) {
@@ -261,6 +261,11 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
     }
     doc.moveTo(0, hdrTop+headerH).lineTo(PAGE_W, hdrTop+headerH)
       .strokeColor('#cccccc').lineWidth(0.5*MM).stroke();
+    if (subtitulo) {
+      doc.fontSize(9).fillColor('#555555').font('Helvetica-Bold')
+        .text(subtitulo.toUpperCase(), mg, hdrTop+headerH+2*MM,
+          { width: PAGE_W-mg*2, align: 'center' });
+    }
   }
 
   function drawFooter() {
@@ -268,7 +273,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
     doc.moveTo(mg, fy).lineTo(PAGE_W-mg, fy)
       .strokeColor('#cccccc').lineWidth(0.15*MM).stroke();
     doc.fontSize(8).fillColor('#888888').font('Helvetica')
-      .text(`Precios sin IVA  ·  ${fecha}  ${hora}  |  TEMPONOVO`,
+      .text(`Precios sin IVA  ·  ${fecha}  |  TEMPONOVO`,
         mg, fy+1.5*MM, { width: PAGE_W-mg*2, align: 'center' });
     if (hasIncoming) {
       doc.fontSize(7.5).fillColor('#888888').font('Helvetica-Oblique')
@@ -288,7 +293,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 
     if (pageIdx === 0 || pageIdx >= PER_PG || catChanged) {
       if (pageIdx > 0) drawFooter();
-      drawHeader();
+      drawHeader(subcat);
       pageIdx = 0;
     }
     currentCat = cat;
@@ -365,7 +370,7 @@ function generarHTML(todos, fecha, hora) {
   const padres = Object.keys(grupos).sort((a,b) => a.localeCompare(b,'es'));
 
   function limpiarCod(c) {
-    for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-'])
+    for (const p of ['CA-CA-','CA-','RL-','QQ-','CC-','ES-','PI-','LI-','CO-','CS-','ZI-'])
       if (c.startsWith(p)) return c.slice(p.length);
     return c;
   }
