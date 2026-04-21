@@ -16,6 +16,8 @@ const https       = require('https');
 const fs          = require('fs');
 const path        = require('path');
 const xmlrpc      = require('xmlrpc');
+let   sharp;
+try { sharp = require('sharp'); } catch(e) { sharp = null; }
 
 const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN;
 const DROPBOX_APP_KEY       = process.env.DROPBOX_APP_KEY;
@@ -321,8 +323,14 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
     const b64 = imgs[p.Default_code];
     if (b64) {
       try {
+        let buf = Buffer.from(b64, 'base64');
+        // Detectar WEBP (header RIFF) y convertir a JPEG
+        const isWebP = buf[0]===0x52 && buf[1]===0x49 && buf[2]===0x46 && buf[3]===0x46;
+        if (isWebP && sharp) {
+          buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
+        }
         doc.rect(x, y, cellW, imgAreaH).fill('#ffffff');
-        doc.image(Buffer.from(b64, 'base64'), x+1*MM, y+1*MM, {
+        doc.image(buf, x+1*MM, y+1*MM, {
           fit: [cellW-2*MM, imgAreaH-2*MM],
           align: 'center', valign: 'center'
         });
