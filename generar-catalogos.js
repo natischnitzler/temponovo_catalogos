@@ -188,15 +188,27 @@ async function fetchCaracteristicas() {
 // Descarga imágenes en lote desde Odoo — solo los códigos que se pidan
 async function fetchImagenesEnLote(codes) {
   if (!codes.length) return {};
-  const BATCH = 10;
+  const BATCH   = 10;
+  const REINTENTOS = 3;
   const imgs  = {};
   for (let i = 0; i < codes.length; i += BATCH) {
     const batch = codes.slice(i, i + BATCH);
-    const raw = await odooCall('product.product', 'search_read', [
-      [['default_code', 'in', batch]], ['default_code', 'image_512']
-    ]);
-    for (const p of raw) {
-      if (p.image_512) imgs[p.default_code] = p.image_512;
+    let ok = false;
+    for (let intento = 1; intento <= REINTENTOS; intento++) {
+      try {
+        const raw = await odooCall('product.product', 'search_read', [
+          [['default_code', 'in', batch]], ['default_code', 'image_512']
+        ]);
+        for (const p of raw) {
+          if (p.image_512) imgs[p.default_code] = p.image_512;
+        }
+        ok = true;
+        break;
+      } catch(e) {
+        if (intento < REINTENTOS) {
+          await new Promise(r => setTimeout(r, 2000 * intento));
+        }
+      }
     }
     process.stdout.write(`\r  📸 ${Math.min(i+BATCH, codes.length)}/${codes.length}`);
   }
