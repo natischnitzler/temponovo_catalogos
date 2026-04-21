@@ -241,8 +241,9 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
   const cellH    = 58  * MM;
   const imgAreaH = 42  * MM;
   const totalH   = ROWS * cellH;
-  const available = PAGE_H - mg*2 - headerH - footerH;
-  const vOffset  = (available - totalH) / 2;
+  const subtitleH = 6 * MM;  // espacio para nombre de subcategoría
+  const available = PAGE_H - mg*2 - headerH - subtitleH - footerH;
+  const vOffset  = subtitleH + (available - totalH) / 2;
   const hasIncoming = productos.some(p => p.Incoming > 0 && p.Stock === 0);
 
   const doc    = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
@@ -263,7 +264,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
       .strokeColor('#cccccc').lineWidth(0.5*MM).stroke();
     if (subtitulo) {
       doc.fontSize(9).fillColor('#555555').font('Helvetica-Bold')
-        .text(subtitulo.toUpperCase(), mg, hdrTop+headerH+2*MM,
+        .text(subtitulo.toUpperCase(), mg, hdrTop+headerH+1.5*MM,
           { width: PAGE_W-mg*2, align: 'center' });
     }
   }
