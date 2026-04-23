@@ -22,7 +22,7 @@ try { sharp = require('sharp'); } catch(e) { sharp = null; }
 const DROPBOX_REFRESH_TOKEN = process.env.DROPBOX_REFRESH_TOKEN;
 const DROPBOX_APP_KEY       = process.env.DROPBOX_APP_KEY;
 const DROPBOX_APP_SECRET    = process.env.DROPBOX_APP_SECRET;
-const DROPBOX_FOLDER        = '/Catalogos Temponovo';
+const DROPBOX_FOLDER        = '';
 let   _dropboxAccessToken   = null;
 const CACHE_PATH     = path.join(__dirname, 'imagenes_cache.json');
 
@@ -582,6 +582,8 @@ async function getDropboxToken() {
 }
 
 async function subirADropbox(buffer, nombreArchivo) {
+  // Agregar _ antes de la extensión
+  nombreArchivo = nombreArchivo.replace(/\.([^.]+)$/, '_.$1');
   const token = await getDropboxToken();
   const res = await axios.post(
     'https://content.dropboxapi.com/2/files/upload', buffer,
