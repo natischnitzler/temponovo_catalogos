@@ -800,9 +800,12 @@ async function main() {
       const buffer = await generarPDF(cat.archivo, prods, cat.orden, caracteristicas, cache);
       console.log(`  ✅ PDF: ${(buffer.length/1024).toFixed(0)} KB`);
 
-      // Dropbox — opcional, no bloquea si falla
+      // Dropbox — comprimir si pesa más de 25MB
       try {
-        const result = await subirADropbox(buffer, cat.archivo);
+        const mbDropbox = buffer.length / 1024 / 1024;
+        const bufferDropbox = mbDropbox > 25 ? comprimirPDF(buffer) : buffer;
+        if (mbDropbox > 25) console.log(`  🗜  Comprimiendo para Dropbox (${mbDropbox.toFixed(0)}MB)...`);
+        const result = await subirADropbox(bufferDropbox, cat.archivo);
         console.log(`  ☁️  Dropbox: ${result.path_display}`);
       } catch(de) {
         console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
