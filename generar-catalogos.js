@@ -327,7 +327,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
         // Detectar WEBP (header RIFF) y convertir a JPEG
         const isWebP = buf[0]===0x52 && buf[1]===0x49 && buf[2]===0x46 && buf[3]===0x46;
         if (isWebP && sharp) {
-          buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
+          buf = await sharp(buf).flatten({ background: { r:255, g:255, b:255 } }).jpeg({ quality: 85 }).toBuffer();
         }
         doc.rect(x, y, cellW, imgAreaH).fill('#ffffff');
         doc.image(buf, x+1*MM, y+1*MM, {
@@ -800,12 +800,9 @@ async function main() {
       const buffer = await generarPDF(cat.archivo, prods, cat.orden, caracteristicas, cache);
       console.log(`  ✅ PDF: ${(buffer.length/1024).toFixed(0)} KB`);
 
-      // Dropbox — comprimir si pesa más de 25MB
+      // Dropbox — opcional, no bloquea si falla
       try {
-        const mbDropbox = buffer.length / 1024 / 1024;
-        const bufferDropbox = mbDropbox > 25 ? comprimirPDF(buffer) : buffer;
-        if (mbDropbox > 25) console.log(`  🗜  Comprimiendo para Dropbox (${mbDropbox.toFixed(0)}MB)...`);
-        const result = await subirADropbox(bufferDropbox, cat.archivo);
+        const result = await subirADropbox(buffer, cat.archivo);
         console.log(`  ☁️  Dropbox: ${result.path_display}`);
       } catch(de) {
         console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
