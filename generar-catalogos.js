@@ -330,9 +330,14 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
       try {
         let buf = Buffer.from(b64, 'base64');
         // Detectar WEBP (header RIFF) y convertir a JPEG
-        const isWebP = buf[0]===0x52 && buf[1]===0x49 && buf[2]===0x46 && buf[3]===0x46;
-        if (isWebP && sharp) {
-          buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
+        if (sharp) {
+          try {
+            buf = await sharp(buf)
+              .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+              .flatten({ background: { r:255, g:255, b:255 } })
+              .jpeg({ quality: 60 })
+              .toBuffer();
+          } catch(se) {}
         }
         doc.rect(x, y, cellW, imgAreaH).fill('#ffffff');
         doc.image(buf, x+1*MM, y+1*MM, {
