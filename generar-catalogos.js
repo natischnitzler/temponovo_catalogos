@@ -158,7 +158,7 @@ async function odooCall(model, method, args) {
 async function fetchProductos() {
   console.log('📦 Obteniendo productos de Odoo...');
   const raw = await odooCall('product.product', 'search_read', [
-    [], ['default_code','name','list_price','qty_available','virtual_available','categ_id']
+    [], ['default_code','name','list_price','qty_available','virtual_available','categ_id','product_tmpl_id']
   ]);
   const productos = raw
     .map(p => ({
@@ -168,6 +168,7 @@ async function fetchProductos() {
       Stock:        p.qty_available || 0,
       Incoming:     Math.max(0, (p.virtual_available||0) - (p.qty_available||0)),
       Category:     p.categ_id ? p.categ_id[1].trim() : '',
+      TmplId:       p.product_tmpl_id ? p.product_tmpl_id[0] : null,
     }))
     // Solo productos con stock > 0 o incoming > 0
     .filter(p => p.Stock > 0 || p.Incoming > 0);
@@ -177,14 +178,18 @@ async function fetchProductos() {
 
 async function fetchCaracteristicas() {
   try {
-    return await new Promise((resolve, reject) => {
-      https.get('https://temponovo-api.onrender.com/api/caracteristicas', res => {
-        let data = '';
-        res.on('data', c => data += c);
-        res.on('end', () => { try { resolve(JSON.parse(data)); } catch(e) { reject(e); } });
-      }).on('error', reject);
-    });
-  } catch(e) { console.log('  ⚠️  Sin características'); return {}; }
+    console.log('📋 Obteniendo descripciones desde Odoo...');
+    const raw = await odooCall('product.template', 'search_read', [
+      [['description_ecommerce', '!=', false]],
+      ['id', 'description_ecommerce']
+    ]);
+    const map = {};
+    for (const t of raw) {
+      if (t.description_ecommerce) map[t.id] = t.description_ecommerce;
+    }
+    console.log(`✅ ${Object.keys(map).length} descripciones obtenidas`);
+    return map;
+  } catch(e) { console.log('  ⚠️  Sin descripciones:', e.message); return {}; }
 }
 
 // Descarga imágenes en lote desde Odoo — solo los códigos que se pidan
@@ -325,14 +330,9 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
       try {
         let buf = Buffer.from(b64, 'base64');
         // Detectar WEBP (header RIFF) y convertir a JPEG
-        // Convertir toda imagen a JPEG con fondo blanco usando sharp
-        if (sharp) {
-          try {
-            buf = await sharp(buf)
-              .flatten({ background: { r:255, g:255, b:255 } })
-              .jpeg({ quality: 70, mozjpeg: true })
-              .toBuffer();
-          } catch(se) {}
+        const isWebP = buf[0]===0x52 && buf[1]===0x49 && buf[2]===0x46 && buf[3]===0x46;
+        if (isWebP && sharp) {
+          buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
         }
         doc.rect(x, y, cellW, imgAreaH).fill('#ffffff');
         doc.image(buf, x+1*MM, y+1*MM, {
@@ -356,17 +356,12 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
       .text(`$${Math.round(p.Price||0).toLocaleString('es-CL')} + IVA`,
         x, infoY+3.5*MM, { width: cellW, align: 'center', lineBreak: false });
 
-    const caract = caracteristicas[p.Default_code];
-    if (caract) {
-      const specs = [
-        caract.genero, caract.tamano_esfera, caract.resistencia_agua,
-        caract.tamano_calculadora,
-        caract.digitos ? `${caract.digitos} Dígitos` : '',
-        caract.tamano_otro, caract.color
-      ].filter(Boolean);
-      if (specs.length) {
+    const desc = p.TmplId ? caracteristicas[p.TmplId] : null;
+    if (desc) {
+      const txt = desc.replace(/<[^>]+>/g, '').trim();
+      if (txt) {
         doc.fontSize(8).fillColor('#787878').font('Helvetica')
-          .text(specs.join(' · '), x, infoY+7*MM,
+          .text(txt, x, infoY+7*MM,
             { width: cellW, align: 'center', lineBreak: false });
       }
     }
