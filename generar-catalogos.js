@@ -90,8 +90,8 @@ const CATALOGOS = [
   { archivo: 'Catalogo_Estuches_Joyas.pdf', categorias: ['Estuches / Capricho','Estuches / Creta','Estuches / Madera','Estuches / Marina','Estuches / Milos','Estuches / Nature','Estuches / Roma','Estuches / Targa','Estuches / Termal','Estuches / Yuppie','Estuches / Zante'], orden: 'categoria' },
   { archivo: 'Catalogo_LimpiezaJoyas.pdf', categorias: ['Limpieza / Limpieza Connoisseurs'], orden: 'categoria' },
   { archivo: 'Catalogo_Pilas_De_Reloj.pdf', categorias: ['Pilas / Alcalinas','Pilas / Litio','Pilas / Oxido de Plata','Pilas / Zinc'], orden: 'categoria' },
-  { archivo: 'Catalogo_Encendedores_Zippo.pdf', categorias: ['Encendedores / Encendedores Zippo'], orden: 'alfabetico' },
-  { archivo: 'Catalogo_Encendedores_Zippo_Familia.pdf', categorias: ['Encendedores / Encendedores Zippo'], orden: 'categoria' },
+  { archivo: 'Catalogo_Encendedores_Zippo.pdf', categorias: ['Encendedores Zippo / Animal & Hunting','Encendedores Zippo / Car y Motocycle','Encendedores Zippo / Classic','Encendedores Zippo / Color','Encendedores Zippo / Gentlemen','Encendedores Zippo / Music & Rock','Encendedores Zippo / Playboy y Casino','Encendedores Zippo / Skull','Encendedores Zippo / Special','Encendedores Zippo / Suplementos','Encendedores Zippo / Zippo Logo'], orden: 'alfabetico' },
+  { archivo: 'Catalogo_Encendedores_Zippo_Familia.pdf', categorias: ['Encendedores Zippo / Animal & Hunting','Encendedores Zippo / Car y Motocycle','Encendedores Zippo / Classic','Encendedores Zippo / Color','Encendedores Zippo / Gentlemen','Encendedores Zippo / Music & Rock','Encendedores Zippo / Playboy y Casino','Encendedores Zippo / Skull','Encendedores Zippo / Special','Encendedores Zippo / Suplementos','Encendedores Zippo / Zippo Logo'], orden: 'categoria' },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
