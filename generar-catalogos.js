@@ -204,10 +204,10 @@ async function fetchImagenesEnLote(codes) {
     for (let intento = 1; intento <= REINTENTOS; intento++) {
       try {
         const raw = await odooCall('product.product', 'search_read', [
-          [['default_code', 'in', batch]], ['default_code', 'image_512']
+          [['default_code', 'in', batch]], ['default_code', 'image_512', 'write_date']
         ]);
         for (const p of raw) {
-          if (p.image_512) imgs[p.default_code] = p.image_512;
+          if (p.image_512) imgs[p.default_code] = { img: p.image_512, fecha: p.write_date };
         }
         ok = true;
         break;
@@ -325,7 +325,8 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 
     doc.rect(x, y, cellW, cellH).fill('#ffffff');
 
-    const b64 = imgs[p.Default_code];
+    const cached = imgs[p.Default_code];
+    const b64 = cached ? (typeof cached === 'object' ? cached.img : cached) : null;
     if (b64) {
       try {
         let buf = Buffer.from(b64, 'base64');
@@ -761,7 +762,25 @@ async function main() {
 
   // 4. Cargar cache y descargar solo las que faltan
   const cache = cargarCache();
-  const sinCache = [...codigosNecesarios].filter(c => !cache[c]);
+  // Pedir write_date de todos los productos necesarios para detectar cambios
+  console.log('🔍 Verificando cambios de imágenes...');
+  const fechasRaw = await odooCall('product.product', 'search_read', [
+    [['default_code', 'in', [...codigosNecesarios]]], ['default_code', 'write_date']
+  ]);
+  const fechasOdoo = {};
+  for (const p of fechasRaw) fechasOdoo[p.default_code] = p.write_date;
+
+  const sinCache = [...codigosNecesarios].filter(c => {
+    if (!cache[c]) return true; // no está en cache
+    const cached = cache[c];
+    // Si el cache tiene formato nuevo con fecha, comparar
+    if (cached && typeof cached === 'object' && cached.fecha) {
+      return cached.fecha !== fechasOdoo[c]; // cambió → re-descargar
+    }
+    return false; // cache viejo sin fecha → mantener
+  });
+  const noModificadas = codigosNecesarios.size - sinCache.length;
+  if (noModificadas > 0) console.log(`  ✅ ${noModificadas} imágenes sin cambios`);
 
   if (sinCache.length > 0) {
     console.log(`  ⬇️  Descargando ${sinCache.length} imágenes nuevas...`);
