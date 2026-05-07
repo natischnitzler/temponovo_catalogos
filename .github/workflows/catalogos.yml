@@ -33,6 +33,8 @@ jobs:
           GH_TOKEN_RELEASES: ${{ secrets.GH_TOKEN_RELEASES }}
           GH_REPO_OWNER: natischnitzler
           GH_REPO_NAME: temponovo_catalogos
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_PASSWORD: ${{ secrets.ODOO_PASSWORD }}
         run: node generar-catalogos.js
       - name: Guardar cache de imágenes
         uses: actions/cache/save@v4
