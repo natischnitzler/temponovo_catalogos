@@ -31,10 +31,15 @@ const GH_REPO_OWNER = process.env.GH_REPO_OWNER || 'natischnitzler';
 const GH_REPO_NAME  = process.env.GH_REPO_NAME  || 'temponovo-catalogos';
 const GH_RELEASE_TAG = 'catalogos-latest';
 
-const ODOO_URL      = 'https://temponovo.odoo.com';
-const ODOO_DB       = 'cmcorpcl-temponovo-main-24490235';
-const ODOO_USERNAME = 'natalia@temponovo.cl';
-const ODOO_PASSWORD = 'Contraodoo94+';
+const ODOO_URL      = process.env.ODOO_URL      || 'https://temponovo.odoo.com';
+const ODOO_DB       = process.env.ODOO_DB       || 'cmcorpcl-temponovo-main-24490235';
+const ODOO_USERNAME = process.env.ODOO_USERNAME;
+const ODOO_PASSWORD = process.env.ODOO_PASSWORD;
+
+if (!ODOO_USERNAME || !ODOO_PASSWORD) {
+  console.error('❌ Faltan credenciales Odoo. Define ODOO_USERNAME y ODOO_PASSWORD como variables de entorno.');
+  process.exit(1);
+}
 
 const HEADER_PATH = path.join(__dirname, 'header.png');
 const HEADER_IMG  = fs.existsSync(HEADER_PATH) ? fs.readFileSync(HEADER_PATH) : null;
