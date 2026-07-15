@@ -50,53 +50,61 @@ if (!DROPBOX_REFRESH_TOKEN || !DROPBOX_APP_KEY || !DROPBOX_APP_SECRET) {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MAPA DE CATÁLOGOS
+// ── En vez de listar cada subcategoría a mano, cada catálogo define una
+//    "familia" (categoría padre en Odoo, ej. 'Encendedores Zippo'). El script
+//    toma AUTOMÁTICAMENTE todas las subcategorías que existan bajo esa familia
+//    en el momento de la corrida — si en Odoo agregan/renombran una subcategoría,
+//    se refleja solo, sin editar este archivo.
+// ── Única excepción: Casio Clásico A-L / M-W, que no agrupa una familia sino
+//    que toma la categoría exacta 'Relojes Casio / Clasico' y la separa por letra
+//    de código (filtro), así que no depende de listar sub-subcategorías.
 // ══════════════════════════════════════════════════════════════════════════════
 const CATALOGOS = [
   {
     archivo: 'Catalogo_Relojes_Casio_Completo.pdf',
-    categorias: ['Relojes Casio / Clasico','Relojes Casio / Despertadores','Relojes Casio / Edifice','Relojes Casio / G-Shock','Relojes Casio / Murales y Crono','Relojes Casio / Protex'],
+    familia: 'Relojes Casio',
     orden: 'categoria',
   },
   {
     archivo: 'Catalogo_Relojes_Casio_Clasico_A-L.pdf',
-    categorias: ['Relojes Casio / Clasico'],
+    familia: 'Relojes Casio / Clasico',
     orden: 'alfabetico',
     filtro: p => limpiarCodigo(p.Default_code).toUpperCase() < 'M',
   },
   {
     archivo: 'Catalogo_Relojes_Casio_Clasico_M_W.pdf',
-    categorias: ['Relojes Casio / Clasico'],
+    familia: 'Relojes Casio / Clasico',
     orden: 'alfabetico',
     filtro: p => limpiarCodigo(p.Default_code).toUpperCase() >= 'M',
   },
-  { archivo: 'Catalogo_Relojes_Casio_Despertadores.pdf', categorias: ['Relojes Casio / Despertadores'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_EdificeyDuro.pdf', categorias: ['Relojes Casio / Edifice'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_Gshock.pdf', categorias: ['Relojes Casio / G-Shock'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_Murales_y_Crono.pdf', categorias: ['Relojes Casio / Murales y Crono'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Casio_Protreck.pdf', categorias: ['Relojes Casio / Protex'], orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_Despertadores.pdf', familia: 'Relojes Casio / Despertadores', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_EdificeyDuro.pdf', familia: 'Relojes Casio / Edifice', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_Gshock.pdf', familia: 'Relojes Casio / G-Shock', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_Murales_y_Crono.pdf', familia: 'Relojes Casio / Murales y Crono', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Casio_Protreck.pdf', familia: 'Relojes Casio / Protex', orden: 'categoria' },
   {
     archivo: 'Catalogo_Relojes_QQ_Alfabeto.pdf',
-    categorias: ['Relojes QQ / Cronografos','Relojes QQ / Dama Cuero','Relojes QQ / Dama Digital','Relojes QQ / Dama Metal','Relojes QQ / Dama Resina','Relojes QQ / Niño','Relojes QQ / Smart Watch','Relojes QQ / Varon Cuero','Relojes QQ / Varon Digital','Relojes QQ / Varon Metal','Relojes QQ / Varon Resina'],
+    familia: 'Relojes QQ',
     orden: 'alfabetico',
   },
   {
     archivo: 'Catalogo_Relojes_QQ_Familia.pdf',
-    categorias: ['Relojes QQ / Cronografos','Relojes QQ / Dama Cuero','Relojes QQ / Dama Digital','Relojes QQ / Dama Metal','Relojes QQ / Dama Resina','Relojes QQ / Niño','Relojes QQ / Smart Watch','Relojes QQ / Varon Cuero','Relojes QQ / Varon Digital','Relojes QQ / Varon Metal','Relojes QQ / Varon Resina'],
+    familia: 'Relojes QQ',
     orden: 'categoria',
   },
-  { archivo: 'Catalogo_Relojes_Guess.pdf', categorias: ['Relojes Guess / Dama','Relojes Guess / Varon'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Suizos.pdf', categorias: ['Relojes Suizo / Dama','Relojes Suizo / Varon'], orden: 'categoria' },
-  { archivo: 'Catalogo_RelojesEconomicos.pdf', categorias: ['Relojes Económicos / Despertadores','Relojes Económicos / Modulos','Relojes Económicos / Murales'], orden: 'categoria' },
-  { archivo: 'Catalogo_Relojes_Timesonic.pdf', categorias: ['Relojes Murales / Relojes Timesonic'], orden: 'categoria' },
-  { archivo: 'Catalogo_Calculadoras_Casio.pdf', categorias: ['Calculadoras Casio / Cientifica','Calculadoras Casio / Escritorio','Calculadoras Casio / Financieras y graficas','Calculadoras Casio / Portatiles','Calculadoras Casio / Rollo','Calculadoras Casio / Suplementos'], orden: 'categoria' },
-  { archivo: 'Catalogo_Calculadoras_Economicas.pdf', categorias: ['Calculadoras Económicas / Calculadora Bolsillo','Calculadoras Económicas / Calculadora Cientifica','Calculadoras Económicas / Calculadora Doble Visor','Calculadoras Económicas / Calculadora Escritorio'], orden: 'categoria' },
-  { archivo: 'Catalogo_Correas_de_Cuero.pdf', categorias: ['Correas / Correas para Reloj de Cuero'], orden: 'categoria' },
-  { archivo: 'Catalogo_Correas_PU.pdf', categorias: ['Correas / Correas para Reloj PU'], orden: 'categoria' },
-  { archivo: 'Catalogo_Estuches_Joyas.pdf', categorias: ['Estuches / Capricho','Estuches / Creta','Estuches / Madera','Estuches / Marina','Estuches / Milos','Estuches / Nature','Estuches / Roma','Estuches / Targa','Estuches / Termal','Estuches / Yuppie','Estuches / Zante'], orden: 'categoria' },
-  { archivo: 'Catalogo_LimpiezaJoyas.pdf', categorias: ['Limpieza / Limpieza Connoisseurs'], orden: 'categoria' },
-  { archivo: 'Catalogo_Pilas_De_Reloj.pdf', categorias: ['Pilas / Alcalinas','Pilas / Litio','Pilas / Oxido de Plata','Pilas / Zinc'], orden: 'categoria' },
-  { archivo: 'Catalogo_Encendedores_Zippo.pdf', categorias: ['Encendedores Zippo / Animal & Hunting','Encendedores Zippo / Car y Motocycle','Encendedores Zippo / Classic','Encendedores Zippo / Color','Encendedores Zippo / Gentlemen','Encendedores Zippo / Music & Rock','Encendedores Zippo / Playboy y Casino','Encendedores Zippo / Skull','Encendedores Zippo / Special','Encendedores Zippo / Suplementos','Encendedores Zippo / Zippo Logo'], orden: 'alfabetico' },
-  { archivo: 'Catalogo_Encendedores_Zippo_Familia.pdf', categorias: ['Encendedores Zippo / Animal & Hunting','Encendedores Zippo / Car y Motocycle','Encendedores Zippo / Classic','Encendedores Zippo / Color','Encendedores Zippo / Gentlemen','Encendedores Zippo / Music & Rock','Encendedores Zippo / Playboy y Casino','Encendedores Zippo / Skull','Encendedores Zippo / Special','Encendedores Zippo / Suplementos','Encendedores Zippo / Zippo Logo'], orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Guess.pdf', familia: 'Relojes Guess', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Suizos.pdf', familia: 'Relojes Suizo', orden: 'categoria' },
+  { archivo: 'Catalogo_RelojesEconomicos.pdf', familia: 'Relojes Económicos', orden: 'categoria' },
+  { archivo: 'Catalogo_Relojes_Timesonic.pdf', familia: 'Relojes Murales / Relojes Timesonic', orden: 'categoria' },
+  { archivo: 'Catalogo_Calculadoras_Casio.pdf', familia: 'Calculadoras Casio', orden: 'categoria' },
+  { archivo: 'Catalogo_Calculadoras_Economicas.pdf', familia: 'Calculadoras Económicas', orden: 'categoria' },
+  { archivo: 'Catalogo_Correas_de_Cuero.pdf', familia: 'Correas / Correas para Reloj de Cuero', orden: 'categoria' },
+  { archivo: 'Catalogo_Correas_PU.pdf', familia: 'Correas / Correas para Reloj PU', orden: 'categoria' },
+  { archivo: 'Catalogo_Estuches_Joyas.pdf', familia: 'Estuches', orden: 'categoria' },
+  { archivo: 'Catalogo_LimpiezaJoyas.pdf', familia: 'Limpieza / Limpieza Connoisseurs', orden: 'categoria' },
+  { archivo: 'Catalogo_Pilas_De_Reloj.pdf', familia: 'Pilas', orden: 'categoria' },
+  { archivo: 'Catalogo_Encendedores_Zippo.pdf', familia: 'Encendedores Zippo', orden: 'alfabetico' },
+  { archivo: 'Catalogo_Encendedores_Zippo_Familia.pdf', familia: 'Encendedores Zippo', orden: 'categoria' },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -108,6 +116,18 @@ function limpiarCodigo(code) {
     if (code.startsWith(p)) return code.slice(p.length);
   }
   return code;
+}
+
+// Un producto "pertenece" a una familia si su categoría es exactamente esa
+// familia, o si es una subcategoría de ella (empieza con "familia / ").
+// Esto es lo que permite que las subcategorías nuevas en Odoo se incluyan solas.
+function perteneceAFamilia(categoriaProducto, familia) {
+  const cat = (categoriaProducto || '').trim();
+  return cat === familia || cat.startsWith(familia + ' / ');
+}
+
+function productosDeFamilia(todos, familia) {
+  return todos.filter(p => perteneceAFamilia(p.Category, familia));
 }
 
 function ordenarProductos(productos, orden) {
@@ -318,7 +338,7 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 
     if (pageIdx === 0 || pageIdx >= PER_PG || catChanged) {
       if (pageIdx > 0) drawFooter();
-      drawHeader(subcat);
+      drawHeader(orden === 'categoria' ? subcat : null);
       pageIdx = 0;
     }
     currentCat = cat;
@@ -759,7 +779,7 @@ async function main() {
   // 3. Determinar todos los códigos necesarios para esta corrida
   const codigosNecesarios = new Set();
   for (const cat of catalogos) {
-    let prods = todos.filter(p => cat.categorias.includes(p.Category));
+    let prods = productosDeFamilia(todos, cat.familia);
     if (cat.filtro) prods = prods.filter(cat.filtro);
     prods.forEach(p => { if (p.Default_code) codigosNecesarios.add(p.Default_code); });
   }
@@ -814,7 +834,7 @@ async function main() {
   for (const cat of catalogos) {
     console.log(`\n📄 ${cat.archivo}`);
 
-    let prods = todos.filter(p => cat.categorias.includes(p.Category));
+    let prods = productosDeFamilia(todos, cat.familia);
     if (cat.filtro) prods = prods.filter(cat.filtro);
 
     if (!prods.length) {
