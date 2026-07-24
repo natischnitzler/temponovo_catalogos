@@ -330,6 +330,16 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
   let pageIdx    = 0;
   let currentCat = null;
 
+  if (!productos.length) {
+    drawHeader(null);
+    doc.fontSize(12).fillColor('#888888').font('Helvetica-Oblique')
+      .text('No hay productos disponibles en este catálogo', mg, PAGE_H/2,
+        { width: PAGE_W - mg*2, align: 'center' });
+    drawFooter();
+    doc.end();
+    return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  }
+
   for (const p of productos) {
     const cat      = (p.Category||'').trim();
     const subcat   = cat.includes('/') ? cat.split('/')[1].trim() : cat;
@@ -838,11 +848,10 @@ async function main() {
     if (cat.filtro) prods = prods.filter(cat.filtro);
 
     if (!prods.length) {
-      console.log('  ⚠️  Sin productos — saltando');
-      continue;
+      console.log('  ⚠️  Sin productos — generando PDF vacío');
+    } else {
+      prods = ordenarProductos(prods, cat.orden);
     }
-
-    prods = ordenarProductos(prods, cat.orden);
     console.log(`  📊 ${prods.length} productos, orden: ${cat.orden}`);
 
     try {
