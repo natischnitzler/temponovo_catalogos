@@ -98,8 +98,8 @@ const CATALOGOS = [
   { archivo: 'Catalogo_Relojes_Timesonic.pdf', familia: 'Relojes Murales / Relojes Timesonic', orden: 'categoria' },
   { archivo: 'Catalogo_Calculadoras_Casio.pdf', familia: 'Calculadoras Casio', orden: 'categoria' },
   { archivo: 'Catalogo_Calculadoras_Economicas.pdf', familia: 'Calculadoras Económicas', orden: 'categoria' },
-  { archivo: 'Catalogo_Correas_de_Cuero.pdf', familia: 'Correas / Correas para Reloj de Cuero', orden: 'categoria' },
-  { archivo: 'Catalogo_Correas_PU.pdf', familia: 'Correas / Correas para Reloj PU', orden: 'categoria' },
+  { archivo: 'Catalogo_Correas_de_Cuero.pdf', familia: 'Correas / Correas para Reloj de Cuero', orden: 'medida' },
+  { archivo: 'Catalogo_Correas_PU.pdf', familia: 'Correas / Correas para Reloj PU', orden: 'medida' },
   { archivo: 'Catalogo_Estuches_Joyas.pdf', familia: 'Estuches', orden: 'categoria' },
   { archivo: 'Catalogo_LimpiezaJoyas.pdf', familia: 'Limpieza / Limpieza Connoisseurs', orden: 'categoria' },
   { archivo: 'Catalogo_Pilas_De_Reloj.pdf', familia: 'Pilas', orden: 'categoria' },
@@ -130,8 +130,25 @@ function productosDeFamilia(todos, familia) {
   return todos.filter(p => perteneceAFamilia(p.Category, familia));
 }
 
+// Extrae la medida en MM del nombre del producto, ej: "CORREA PU 2105 (137) 18 MM" → 18
+function extraerMedida(name) {
+  const m = (name || '').match(/(\d+(?:[.,]\d+)?)\s*MM\b/i);
+  return m ? parseFloat(m[1].replace(',', '.')) : null;
+}
+
 function ordenarProductos(productos, orden) {
   return [...productos].sort((a, b) => {
+    if (orden === 'medida') {
+      const medA = extraerMedida(a.Name);
+      const medB = extraerMedida(b.Name);
+      // Productos sin medida detectada van al final
+      if (medA === null && medB === null)
+        return limpiarCodigo(a.Default_code).localeCompare(limpiarCodigo(b.Default_code), 'es');
+      if (medA === null) return 1;
+      if (medB === null) return -1;
+      if (medA !== medB) return medA - medB;
+      return limpiarCodigo(a.Default_code).localeCompare(limpiarCodigo(b.Default_code), 'es');
+    }
     if (orden === 'alfabetico')
       return limpiarCodigo(a.Default_code).localeCompare(limpiarCodigo(b.Default_code), 'es');
     const catA = (a.Category||'').trim();
@@ -196,7 +213,9 @@ async function fetchProductos() {
       TmplId:       p.product_tmpl_id ? p.product_tmpl_id[0] : null,
     }))
     // Solo productos con stock > 0 o incoming > 0
-    .filter(p => p.Stock > 0 || p.Incoming > 0);
+    .filter(p => p.Stock > 0 || p.Incoming > 0)
+    // Excluir productos marcados como "mal estado" (ej: "(Mal estado) ..." )
+    .filter(p => !/mal estado/i.test(p.Name));
   console.log(`✅ ${productos.length} productos con stock`);
   return productos;
 }
