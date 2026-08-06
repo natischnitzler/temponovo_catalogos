@@ -437,6 +437,29 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GENERADOR STOCK COMPLETO — Excel simple (código + cantidad) de TODO el stock.
+// Si la cantidad disponible es mayor a 20, se topa en 20.
+// ══════════════════════════════════════════════════════════════════════════════
+function generarStockCompleto(todos) {
+  const ordenados = [...todos]
+    .filter(p => p.Default_code)
+    .sort((a, b) => a.Default_code.localeCompare(b.Default_code, 'es'));
+
+  const filas = [['Código', 'Cantidad']];
+  ordenados.forEach(p => {
+    const cantidad = Math.min(p.Stock || 0, 20);
+    filas.push([p.Default_code, cantidad]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = [{ wch: 24 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+
+  return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GENERADOR HTML — Consulta de stock para celular
 // ══════════════════════════════════════════════════════════════════════════════
 function generarHTML(todos, fecha, hora) {
@@ -988,6 +1011,35 @@ async function main() {
       }
     } catch(err) {
       console.error('  ❌ Error generando Base Pedido:', err.message);
+    }
+  }
+
+  // 8. Generar y subir Stock Completo (excel simple: código + cantidad, tope 20)
+  if (!filtroArg) {
+    console.log('\n📊 Generando Stock Completo...');
+    const archivoStock = 'Stock_Completo.xlsx';
+    try {
+      const bufferStock = generarStockCompleto(todos);
+      console.log(`  ✅ Excel: ${(bufferStock.length/1024).toFixed(0)} KB`);
+
+      try {
+        const result = await subirADropbox(bufferStock, archivoStock);
+        console.log(`  ☁️  Dropbox: ${result.path_display}`);
+      } catch(de) {
+        console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
+      }
+
+      if (GH_TOKEN && releaseId) {
+        try {
+          const url = await subirAGithub(bufferStock, archivoStock, releaseId);
+          links[archivoStock] = url;
+          console.log(`  🐙 GitHub: ${url}`);
+        } catch(ge) {
+          console.log(`  ⚠️  GitHub: ${ge.message}`);
+        }
+      }
+    } catch(err) {
+      console.error('  ❌ Error generando Stock Completo:', err.message);
     }
   }
 
