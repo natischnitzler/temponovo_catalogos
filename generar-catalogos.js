@@ -16,6 +16,7 @@ const https       = require('https');
 const fs          = require('fs');
 const path        = require('path');
 const xmlrpc      = require('xmlrpc');
+const XLSX        = require('xlsx');
 let   sharp;
 try { sharp = require('sharp'); } catch(e) { sharp = null; }
 
@@ -628,6 +629,41 @@ function filtrar(){
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GENERADOR BASE PEDIDO — Plantilla Excel de importación (mismo formato que
+// usa Odoo para "Importar pedido de compra": columnas Product_name/barcode/sku
+// y Qty, hoja 'import_po_excel'). Se rellena con 5 productos de ejemplo para
+// que el cliente vea el formato y lo complete con sus propios códigos/cantidades.
+// ══════════════════════════════════════════════════════════════════════════════
+const BASE_PEDIDO_CODIGOS = [
+  'CS-F91W1U',
+  'CS-A158WA1U',
+  'CS-LA670WGA9D',
+  'CS-LA670WA1U',
+  'CS-LA670WGA1D',
+  'CS-MTPV001D1B',
+  'CS-F91W3SDG',
+];
+
+function generarBasePedido(todos) {
+  const filas = [['Product_name or barcode or sku', 'Qty']];
+  BASE_PEDIDO_CODIGOS.forEach(codigo => {
+    filas.push([codigo, '1.00']); // Qty como texto, igual que la plantilla original
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(filas, { cellDates: false });
+  // Forzar tipo texto en la columna Qty (mismo formato que prueba_natalia.xls)
+  for (let r = 1; r <= BASE_PEDIDO_CODIGOS.length; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 1 });
+    if (ws[addr]) ws[addr].t = 's';
+  }
+  ws['!cols'] = [{ wch: 32 }, { wch: 8 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'import_po_excel');
+
+  return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xls' }));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // DROPBOX
 // ══════════════════════════════════════════════════════════════════════════════
 async function getDropboxToken() {
@@ -923,6 +959,35 @@ async function main() {
       console.log('  ✅ Stock_Temponovo.html subido a Dropbox');
     } catch(err) {
       console.error('  ❌ Error generando HTML:', err.message);
+    }
+  }
+
+  // 7. Generar y subir Base Pedido (plantilla Excel con 5 productos de ejemplo)
+  if (!filtroArg) {
+    console.log('\n📝 Generando Base Pedido...');
+    const archivoPedido = 'Base_Pedido.xls';
+    try {
+      const bufferPedido = generarBasePedido(todos);
+      console.log(`  ✅ Excel: ${(bufferPedido.length/1024).toFixed(0)} KB`);
+
+      try {
+        const result = await subirADropbox(bufferPedido, archivoPedido);
+        console.log(`  ☁️  Dropbox: ${result.path_display}`);
+      } catch(de) {
+        console.log(`  ⚠️  Dropbox: ${de.response?.data?.error_summary || de.message}`);
+      }
+
+      if (GH_TOKEN && releaseId) {
+        try {
+          const url = await subirAGithub(bufferPedido, archivoPedido, releaseId);
+          links[archivoPedido] = url;
+          console.log(`  🐙 GitHub: ${url}`);
+        } catch(ge) {
+          console.log(`  ⚠️  GitHub: ${ge.message}`);
+        }
+      }
+    } catch(err) {
+      console.error('  ❌ Error generando Base Pedido:', err.message);
     }
   }
 
