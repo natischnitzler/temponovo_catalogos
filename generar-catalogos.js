@@ -104,6 +104,10 @@ const CATALOGOS = [
   { archivo: 'Catalogo_Estuches_Joyas.pdf', familia: 'Estuches', orden: 'categoria' },
   { archivo: 'Catalogo_LimpiezaJoyas.pdf', familia: 'Limpieza / Limpieza Connoisseurs', orden: 'categoria' },
   { archivo: 'Catalogo_Pilas_De_Reloj.pdf', familia: 'Pilas', orden: 'categoria' },
+  // Documento de tabla (código + precio, sin fotos) — no grilla de imágenes.
+  // Se agrupa automáticamente por subcategoría de Odoo bajo 'Pilas', y solo
+  // incluye productos con stock físico > 0 (los sin stock se ocultan).
+  { archivo: 'Lista_Precios_Pilas.pdf', familia: 'Pilas', orden: 'categoria', tipo: 'lista_precios' },
   { archivo: 'Catalogo_Encendedores_Zippo.pdf', familia: 'Encendedores Zippo', orden: 'alfabetico' },
   { archivo: 'Catalogo_Encendedores_Zippo_Familia.pdf', familia: 'Encendedores Zippo', orden: 'categoria' },
 ];
@@ -435,6 +439,205 @@ async function generarPDF(nombreArchivo, productos, orden, caracteristicas, imgs
   return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EMPAQUES DE PILAS (Bl = unidades por blister, Caja = unidades por caja)
+// ── Este dato NO existe en Odoo — es fijo/manual, extraído de la lista de
+//    precios Maxell/Renata vigente. Se actualiza a mano solo si cambia un
+//    empaque. Códigos sin entrada acá (ej. pilas Zinc, que no vienen en esa
+//    lista) simplemente salen con las columnas Bl/Caja en blanco.
+// ── Formato: 'CODIGO': [bl, caja]  (caja: null si no está especificada)
+// ══════════════════════════════════════════════════════════════════════════════
+const PILAS_EMPAQUES = {
+  // Litio Maxell
+  'CR1025': [5, 100], 'CR1216': [5, 100], 'CR1220': [6, 72], 'CR1225': [5, 100],
+  'CR1612': [5, 100], 'CR1616': [5, 100], 'CR1620': [5, 100], 'CR1632': [5, 100],
+  'CR2012': [5, 100], 'CR2016': [5, 100], 'CR2025': [5, 100], 'CR2032': [5, 100],
+  'CR2320': [1, 36],  'CR2330': [1, 36],   'CR2412': [1, null], 'CR2430': [1, 36],
+  'CR2450': [1, 24],  'CR2477': [1, 24],   'CR3032': [10, 100], 'CR123': [1, 12],
+
+  // Alcalinas para Alarmas
+  'G23A': [5, 100], 'G27A': [5, 100],
+
+  // Alcalinas Pastillas Maxell (sin mercurio)
+  'LR1120': [10, 200], 'LR1130': [10, 200], 'LR41': [10, 200],
+  'LR43':   [10, 200], 'LR44':   [10, 200],
+
+  // Audífonos Maxell (Power One) blister de 6
+  'ZP10': [6, 60], 'ZP13': [6, 60], 'ZP312': [6, 60], 'ZP675': [6, 60],
+
+  // Oxido de Plata Maxell
+  'SR41W': [5, 100], 'SR41SW': [5, 100], 'SR421SW': [5, 100], 'SR43SW': [5, 100],
+  'SR43W': [5, 100], 'SR44W': [5, 100], 'SR44SW': [5, 100], 'SR416SW': [5, 100],
+  'SR512SW': [5, 100], 'SR516SW': [5, 100],
+  'SR521SW5': [5, 100], 'SR521SW10': [10, 200], 'SR521SW20': [20, 50],
+  'SR527SW': [5, 100],
+  'SR616SW5': [5, 100], 'SR616SW10': [10, 200],
+  'SR621SW20': [20, 500], 'SR621SW10': [10, 200], 'SR621SW5': [5, 100], 'SR621W': [5, 100],
+  'SR626SW20': [20, 500], 'SR626SW10': [10, 200], 'SR626SW5': [5, 100], 'SR626W': [5, 100],
+  'SR712SW': [5, 100], 'SR716SW': [5, 100],
+  'SR721W': [5, 100], 'SR721SW': [5, 100],
+  'SR726SW': [5, 100], 'SR726W': [5, 100],
+  'SR731SW': [5, 100], 'SR754W': [5, 100],
+  'SR916W': [5, 100], 'SR916SW': [5, 100],
+  'SR920SW5': [5, 100], 'SR920SW10': [10, 200], 'SR920W': [5, 100],
+  'SR927SW': [5, 100], 'SR927SW10': [10, 200], 'SR927W': [5, 100],
+  'SR936SW': [5, 100],
+  'SR1116SW': [5, 100], 'SR1120SW': [5, 100], 'SR1120W': [5, 100],
+  'SR1130SW': [5, 100], 'SR1130W': [5, 100], 'SR1136SW': [5, 100],
+
+  // Oxido de Plata Renata
+  'SR41RSW': [10, 100], 'SR416RSW': [10, 100], 'SR512RSW': [10, 100], 'SR516RSW': [10, 100],
+  'SR521RSW': [10, 100], 'SR527RSW': [10, 100], 'SR616RSW': [10, 100], 'SR621RSW': [10, 100],
+  'SR626RSW': [10, 100], 'SR712RSW': [10, 100], 'SR714RSW': [10, 100], 'SR716RSW': [10, 100],
+  'SR721RSW': [10, 100], 'SR726RSW': [10, 100], 'SR731RSW': [10, 100], 'SR916RSW': [10, 100],
+  'SR920RW':  [10, 100], 'SR920RSW': [10, 100], 'SR927RSW': [10, 100], 'SR936RSW': [10, 100],
+  'SR1116RSW': [10, 100], 'SR1120RSW': [10, 100], 'SR1130RSW': [10, 100],
+
+  // Audífonos Renata blister de 6
+  'ZP10R': [6, 60], 'ZP13R': [6, 60], 'ZP312R': [6, 60], 'ZP675R': [6, 60],
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GENERADOR LISTA DE PRECIOS (tabla, sin fotos) — pensado para "Pilas": dos
+// columnas por página, agrupado por subcategoría de Odoo. Solo incluye
+// productos con stock físico > 0 (los sin stock se ocultan de la lista).
+// A diferencia de generarPDF() no usa imágenes, así que corre rápido y no
+// depende del cache de imágenes.
+// ══════════════════════════════════════════════════════════════════════════════
+async function generarListaPrecios(nombreArchivo, productosOriginal) {
+  const productos = productosOriginal.filter(p => p.Stock > 0);
+
+  const MM      = 2.8346;
+  const PAGE_W  = 210 * MM;
+  const PAGE_H  = 297 * MM;
+  const mg      = 10  * MM;
+  const headerH = (210 * (200/1866)) * MM;
+  const footerH = 8   * MM;
+  const colGap  = 6   * MM;
+  const colW    = (PAGE_W - mg*2 - colGap) / 2;
+  const codeW   = colW * 0.40;
+  const blW     = colW * 0.17;
+  const cajaW   = colW * 0.17;
+  const priceW  = colW * 0.26;
+  const rowH    = 4.6 * MM;
+  const grpH    = 6   * MM;
+  const colHeadH = 3.8 * MM;
+  const startY  = 3*MM + headerH + 8*MM;
+  const bottom  = PAGE_H - mg - footerH - 2*MM;
+
+  const doc    = new PDFDocument({ size: 'A4', margin: 0, autoFirstPage: false });
+  const chunks = [];
+  doc.on('data', c => chunks.push(c));
+
+  const fecha = new Date().toLocaleDateString('es-CL', {day:'2-digit',month:'2-digit',year:'numeric'});
+
+  function drawHeader() {
+    doc.addPage();
+    const hdrTop = 3 * MM;
+    if (HEADER_IMG) {
+      try { doc.image(HEADER_IMG, 0, hdrTop, { width: PAGE_W, height: headerH }); }
+      catch(e) { doc.fontSize(10).fillColor('#2c7873').font('Helvetica-Bold').text('TEMPONOVO', mg, hdrTop+8); }
+    }
+    doc.moveTo(0, hdrTop+headerH).lineTo(PAGE_W, hdrTop+headerH)
+      .strokeColor('#cccccc').lineWidth(0.5*MM).stroke();
+    doc.fontSize(11).fillColor('#333333').font('Helvetica-Bold')
+      .text('LISTA DE PRECIOS · PILAS', mg, hdrTop+headerH+2*MM,
+        { width: PAGE_W-mg*2, align: 'center' });
+  }
+
+  function drawFooter() {
+    const fy = PAGE_H - mg - footerH;
+    doc.moveTo(mg, fy).lineTo(PAGE_W-mg, fy)
+      .strokeColor('#cccccc').lineWidth(0.15*MM).stroke();
+    doc.fontSize(8).fillColor('#888888').font('Helvetica')
+      .text(`Precios sin IVA  ·  ${fecha}  |  TEMPONOVO`,
+        mg, fy+1.5*MM, { width: PAGE_W-mg*2, align: 'center' });
+  }
+
+  if (!productos.length) {
+    drawHeader();
+    doc.fontSize(12).fillColor('#888888').font('Helvetica-Oblique')
+      .text('No hay productos disponibles en este catálogo', mg, PAGE_H/2,
+        { width: PAGE_W - mg*2, align: 'center' });
+    drawFooter();
+    doc.end();
+    return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  }
+
+  // Agrupar por subcategoría (todo lo que va después de "Pilas / "); si no
+  // hay subcategoría, se usa la categoría completa como grupo único.
+  const gruposMap = {};
+  const ordenGrupos = [];
+  for (const p of productos) {
+    const cat = (p.Category || '').trim();
+    const sub = cat.includes('/') ? cat.split('/').slice(1).join('/').trim() : cat;
+    const key = sub || 'Otros';
+    if (!gruposMap[key]) { gruposMap[key] = []; ordenGrupos.push(key); }
+    gruposMap[key].push(p);
+  }
+
+  const pos = { col: 0, y: startY };
+
+  function avanzarColumna() {
+    if (pos.col === 0) {
+      pos.col = 1;
+      pos.y = startY;
+    } else {
+      drawFooter();
+      drawHeader();
+      pos.col = 0;
+      pos.y = startY;
+    }
+  }
+
+  function reservar(h) {
+    if (pos.y + h > bottom) avanzarColumna();
+  }
+
+  drawHeader();
+
+  for (const key of ordenGrupos) {
+    const prods = gruposMap[key];
+    reservar(grpH + colHeadH + rowH); // que el título no quede solo al final de una columna
+    const gx = mg + pos.col * (colW + colGap);
+    doc.fontSize(9).fillColor('#1a7a5e').font('Helvetica-Bold')
+      .text(key.toUpperCase(), gx, pos.y, { width: colW, lineBreak: false });
+    pos.y += grpH;
+
+    // Encabezado de columnas (Código / Bl / Caja / Precio)
+    doc.fontSize(6.5).fillColor('#999999').font('Helvetica')
+      .text('Código', gx, pos.y, { width: codeW, lineBreak: false })
+      .text('Bl', gx + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
+      .text('Caja', gx + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false })
+      .text('Precio', gx + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
+    pos.y += colHeadH;
+
+    for (const p of prods) {
+      reservar(rowH);
+      const gx2 = mg + pos.col * (colW + colGap);
+      const codigo = limpiarCodigo(p.Default_code) || '';
+      const empaque = PILAS_EMPAQUES[codigo];
+      const bl   = empaque && empaque[0] != null ? String(empaque[0]) : '';
+      const caja = empaque && empaque[1] != null ? String(empaque[1]) : '';
+
+      doc.fontSize(8).fillColor('#000000').font('Helvetica')
+        .text(codigo, gx2, pos.y, { width: codeW, lineBreak: false });
+      doc.fontSize(8).fillColor('#555555').font('Helvetica')
+        .text(bl, gx2 + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
+        .text(caja, gx2 + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false });
+      doc.fontSize(8).fillColor('#000000').font('Helvetica-Bold')
+        .text(`$${Math.round(p.Price||0).toLocaleString('es-CL')}`,
+          gx2 + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
+      pos.y += rowH;
+    }
+    pos.y += 2 * MM; // espacio entre grupos
+  }
+
+  drawFooter();
+  doc.end();
+  return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GENERADOR STOCK COMPLETO — Excel simple (código + cantidad) de TODO el stock.
@@ -867,6 +1070,7 @@ async function main() {
   // 3. Determinar todos los códigos necesarios para esta corrida
   const codigosNecesarios = new Set();
   for (const cat of catalogos) {
+    if (cat.tipo === 'lista_precios') continue; // no usa fotos
     let prods = productosDeFamilia(todos, cat.familia);
     if (cat.filtro) prods = prods.filter(cat.filtro);
     prods.forEach(p => { if (p.Default_code) codigosNecesarios.add(p.Default_code); });
@@ -933,7 +1137,9 @@ async function main() {
     console.log(`  📊 ${prods.length} productos, orden: ${cat.orden}`);
 
     try {
-      const buffer = await generarPDF(cat.archivo, prods, cat.orden, caracteristicas, cache);
+      const buffer = cat.tipo === 'lista_precios'
+        ? await generarListaPrecios(cat.archivo, prods)
+        : await generarPDF(cat.archivo, prods, cat.orden, caracteristicas, cache);
       console.log(`  ✅ PDF: ${(buffer.length/1024).toFixed(0)} KB`);
 
       // Dropbox — opcional, no bloquea si falla
