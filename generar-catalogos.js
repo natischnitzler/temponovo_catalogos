@@ -565,29 +565,54 @@ async function generarListaPrecios(nombreArchivo, productosOriginal) {
     return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 
-  // Agrupar por subcategoría (todo lo que va después de "Pilas / "); si no
-  // hay subcategoría, se usa la categoría completa como grupo único.
-  const gruposMap = {};
-  const ordenGrupos = [];
+  // El código en Odoo trae el prefijo de marca: "MA-" (Maxell) o "RE-" (Renata).
+  // Lo separamos para (a) no mostrarlo, (b) agrupar por marca, y (c) buscar
+  // en PILAS_EMPAQUES, cuya tabla está indexada SIN el prefijo de marca.
+  function separarMarca(code) {
+    code = code || '';
+    if (code.startsWith('MA-')) return { marca: 'Maxell', codigo: code.slice(3) };
+    if (code.startsWith('RE-')) return { marca: 'Renata', codigo: code.slice(3) };
+    return { marca: 'Otras', codigo: code };
+  }
+
+  // Inserta un guion entre las letras iniciales y el primer dígito: "G23A" → "G-23A".
+  function formatearCodigo(codigo) {
+    const m = codigo.match(/^([A-Za-z]+)(\d.*)$/);
+    return m ? `${m[1]}-${m[2]}` : codigo;
+  }
+
+  // Agrupar primero por MARCA (Maxell antes que Renata) y, dentro de cada
+  // marca, por subcategoría de Odoo (Alcalinas, Litio, Oxido de Plata, Zinc...).
+  const MARCA_ORDEN = ['Maxell', 'Renata', 'Otras'];
+  const porMarca = { Maxell: {}, Renata: {}, Otras: {} };
+  const subcatsPorMarca = { Maxell: [], Renata: [], Otras: [] };
+
   for (const p of productos) {
+    const { marca, codigo } = separarMarca(p.Default_code);
     const cat = (p.Category || '').trim();
     const sub = cat.includes('/') ? cat.split('/').slice(1).join('/').trim() : cat;
     const key = sub || 'Otros';
-    if (!gruposMap[key]) { gruposMap[key] = []; ordenGrupos.push(key); }
-    gruposMap[key].push(p);
+    if (!porMarca[marca][key]) { porMarca[marca][key] = []; subcatsPorMarca[marca].push(key); }
+    porMarca[marca][key].push({ ...p, _codigoLimpio: codigo });
   }
 
   const pos = { col: 0, y: startY };
+  let startYActual = startY; // dónde parte cada columna en la página actual
+
+  function nuevaPagina() {
+    drawFooter();
+    drawHeader();
+    startYActual = startY;
+    pos.col = 0;
+    pos.y = startYActual;
+  }
 
   function avanzarColumna() {
     if (pos.col === 0) {
       pos.col = 1;
-      pos.y = startY;
+      pos.y = startYActual;
     } else {
-      drawFooter();
-      drawHeader();
-      pos.col = 0;
-      pos.y = startY;
+      nuevaPagina();
     }
   }
 
@@ -597,41 +622,59 @@ async function generarListaPrecios(nombreArchivo, productosOriginal) {
 
   drawHeader();
 
-  for (const key of ordenGrupos) {
-    const prods = gruposMap[key];
-    reservar(grpH + colHeadH + rowH); // que el título no quede solo al final de una columna
-    const gx = mg + pos.col * (colW + colGap);
-    doc.fontSize(9).fillColor('#1a7a5e').font('Helvetica-Bold')
-      .text(key.toUpperCase(), gx, pos.y, { width: colW, lineBreak: false });
-    pos.y += grpH;
+  let primerMarca = true;
+  for (const marca of MARCA_ORDEN) {
+    const subcats = subcatsPorMarca[marca];
+    if (!subcats.length) continue; // esta marca no tiene productos con stock
 
-    // Encabezado de columnas (Código / Bl / Caja / Precio)
-    doc.fontSize(6.5).fillColor('#999999').font('Helvetica')
-      .text('Código', gx, pos.y, { width: codeW, lineBreak: false })
-      .text('Bl', gx + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
-      .text('Caja', gx + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false })
-      .text('Precio', gx + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
-    pos.y += colHeadH;
+    // Cada marca empieza siempre en una página nueva.
+    if (!primerMarca) nuevaPagina();
+    primerMarca = false;
 
-    for (const p of prods) {
-      reservar(rowH);
-      const gx2 = mg + pos.col * (colW + colGap);
-      const codigo = limpiarCodigo(p.Default_code) || '';
-      const empaque = PILAS_EMPAQUES[codigo];
-      const bl   = empaque && empaque[0] != null ? String(empaque[0]) : '';
-      const caja = empaque && empaque[1] != null ? String(empaque[1]) : '';
+    // Banner de marca, ancho completo (no por columna).
+    doc.fontSize(13).fillColor('#333333').font('Helvetica-Bold')
+      .text(marca.toUpperCase(), mg, pos.y, { width: PAGE_W - mg*2, align: 'left' });
+    doc.moveTo(mg, pos.y + 5.5*MM).lineTo(PAGE_W - mg, pos.y + 5.5*MM)
+      .strokeColor('#1a7a5e').lineWidth(0.4*MM).stroke();
+    pos.y += 8 * MM;
+    startYActual = pos.y; // ambas columnas de esta página parten bajo el banner
 
-      doc.fontSize(8).fillColor('#000000').font('Helvetica')
-        .text(codigo, gx2, pos.y, { width: codeW, lineBreak: false });
-      doc.fontSize(8).fillColor('#555555').font('Helvetica')
-        .text(bl, gx2 + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
-        .text(caja, gx2 + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false });
-      doc.fontSize(8).fillColor('#000000').font('Helvetica-Bold')
-        .text(`$${Math.round(p.Price||0).toLocaleString('es-CL')}`,
-          gx2 + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
-      pos.y += rowH;
+    for (const key of subcats) {
+      const prods = porMarca[marca][key];
+      reservar(grpH + colHeadH + rowH); // que el título no quede solo al final de una columna
+      const gx = mg + pos.col * (colW + colGap);
+      doc.fontSize(9).fillColor('#1a7a5e').font('Helvetica-Bold')
+        .text(key.toUpperCase(), gx, pos.y, { width: colW, lineBreak: false });
+      pos.y += grpH;
+
+      // Encabezado de columnas (Código / Bl / Caja / Precio)
+      doc.fontSize(6.5).fillColor('#999999').font('Helvetica')
+        .text('Código', gx, pos.y, { width: codeW, lineBreak: false })
+        .text('Bl', gx + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
+        .text('Caja', gx + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false })
+        .text('Precio', gx + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
+      pos.y += colHeadH;
+
+      for (const p of prods) {
+        reservar(rowH);
+        const gx2 = mg + pos.col * (colW + colGap);
+        const codigoMostrado = formatearCodigo(p._codigoLimpio);
+        const empaque = PILAS_EMPAQUES[p._codigoLimpio];
+        const bl   = empaque && empaque[0] != null ? String(empaque[0]) : '';
+        const caja = empaque && empaque[1] != null ? String(empaque[1]) : '';
+
+        doc.fontSize(8).fillColor('#000000').font('Helvetica')
+          .text(codigoMostrado, gx2, pos.y, { width: codeW, lineBreak: false });
+        doc.fontSize(8).fillColor('#555555').font('Helvetica')
+          .text(bl, gx2 + codeW, pos.y, { width: blW, align: 'center', lineBreak: false })
+          .text(caja, gx2 + codeW + blW, pos.y, { width: cajaW, align: 'center', lineBreak: false });
+        doc.fontSize(8).fillColor('#000000').font('Helvetica-Bold')
+          .text(`$${Math.round(p.Price||0).toLocaleString('es-CL')}`,
+            gx2 + codeW + blW + cajaW, pos.y, { width: priceW, align: 'right', lineBreak: false });
+        pos.y += rowH;
+      }
+      pos.y += 2 * MM; // espacio entre grupos
     }
-    pos.y += 2 * MM; // espacio entre grupos
   }
 
   drawFooter();
