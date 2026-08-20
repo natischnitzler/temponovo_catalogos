@@ -565,14 +565,16 @@ async function generarListaPrecios(nombreArchivo, productosOriginal) {
     return new Promise(resolve => doc.on('end', () => resolve(Buffer.concat(chunks))));
   }
 
-  // El código en Odoo trae el prefijo de marca: "MA-" (Maxell) o "RE-" (Renata).
-  // Lo separamos para (a) no mostrarlo, (b) agrupar por marca, y (c) buscar
-  // en PILAS_EMPAQUES, cuya tabla está indexada SIN el prefijo de marca.
+  // El código en Odoo trae el prefijo de familia "PI-" y, después, el de
+  // marca: "MA-" (Maxell) o "RE-" (Renata) → ej. "PI-MA-G23A", "PI-RE-SR41RSW".
+  // Sacamos ambos prefijos para (a) no mostrarlos, (b) agrupar por marca, y
+  // (c) buscar en PILAS_EMPAQUES, cuya tabla está indexada sin ninguno de los dos.
   function separarMarca(code) {
-    code = code || '';
-    if (code.startsWith('MA-')) return { marca: 'Maxell', codigo: code.slice(3) };
-    if (code.startsWith('RE-')) return { marca: 'Renata', codigo: code.slice(3) };
-    return { marca: 'Otras', codigo: code };
+    let c = code || '';
+    if (c.startsWith('PI-')) c = c.slice(3);
+    if (c.startsWith('MA-')) return { marca: 'Maxell', codigo: c.slice(3) };
+    if (c.startsWith('RE-')) return { marca: 'Renata', codigo: c.slice(3) };
+    return { marca: 'Otras', codigo: c };
   }
 
   // Inserta un guion entre las letras iniciales y el primer dígito: "G23A" → "G-23A".
