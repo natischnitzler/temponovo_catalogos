@@ -130,6 +130,12 @@ function detectarPrecio(txt){
   if (m){ min = num(m[1]); max = num(m[2]); }
   return { precio_max: max, precio_min: min };
 }
+/* Palabras que no dicen nada por sí solas y no vale la pena buscar en el texto */
+const VACIAS = new Set(['reloj','relojes','casio','quiero','busco','necesito','un','una','el','la',
+ 'de','del','con','sin','para','que','algo','tipo','mas','más','menos','por','favor','me','mi','y',
+ 'o','en','al','lo','los','las','es','sea','ando','buscando','tienen','tienes','hay','tiene','muy',
+ 'como','estilo','color','mil','lucas','pesos','bajo','hasta','entre','sobre','desde']);
+
 function interpretar(frase){
   const t = normalizar(frase);
   const f = {
@@ -138,6 +144,15 @@ function interpretar(frase){
     agua: CON_AGUA.some(p => t.includes(' ' + p + ' ')),
     ...detectarPrecio(t),
   };
+  // Lo que el diccionario no supo interpretar se busca en la descripción:
+  // así "con flores" o "cuadriculado" funcionan sin tener que preverlos.
+  const usadas = new Set();
+  Object.values(D).forEach(g => Object.entries(g).forEach(([v, ps]) => {
+    if (Object.values(f).includes(v)) ps.forEach(x => x.split(' ').forEach(w => usadas.add(w)));
+  }));
+  CON_AGUA.forEach(w => { if (f.agua) usadas.add(w); });
+  f.libres = t.trim().split(' ')
+    .filter(w => w.length > 3 && !VACIAS.has(w) && !usadas.has(w) && !/^\d/.test(w));
   if (f.estilo === 'deportivo') f.agua = true;
   // "correa de metal" no debe además pintar el reloj de plateado
   if (f.correa === 'acero' && f.tono === 'plateado' && /metal|acero/.test(t)) f.tono = '';
@@ -211,6 +226,14 @@ function puntuar(f){
       else if(p.res==='100m'){pts+=2;razones.push('100 m');}
       else if(p.res==='50m') pts+=1; else pts-=3;
     }
+    if(f.libres && f.libres.length){
+      const texto = ((a.descripcion||'')+' '+(a.patron||'')+' '+(a.funciones||[]).join(' ')+' '+p.nombre)
+        .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      for(const w of f.libres){
+        const raiz = w.replace(/(es|s)$/,'');
+        if(raiz.length>2 && texto.includes(raiz)){ pts+=4; razones.push(w); }
+      }
+    }
     if(f.precio_max!=null){ if(p.precio>f.precio_max) fuera=true; else pts+=1; }
     if(f.precio_min!=null && p.precio<f.precio_min) fuera=true;
     if(!fuera&&pts>0) out.push({p,pts,razones});
@@ -218,16 +241,17 @@ function puntuar(f){
   out.sort((x,y)=>y.pts-x.pts||x.p.precio-y.p.precio);
   return out;
 }
-const ORDEN=['estilo','tono','correa','tipo','genero','agua','precio_max'];
-const NOMBRE={estilo:'el estilo',tono:'el color',correa:'el material de la correa',
+const ORDEN=['libres','estilo','tono','correa','tipo','genero','agua','precio_max'];
+const NOMBRE={libres:'algunas palabras de la búsqueda',estilo:'el estilo',tono:'el color',correa:'el material de la correa',
  tipo:'el tipo de reloj',genero:'que sea de hombre o mujer',agua:'la resistencia al agua',
  precio_max:'el presupuesto'};
 
 function buscar(f){
   let r=puntuar(f);
   if(r.length) return {resultados:r.slice(0,8),soltados:[]};
-  const activos=ORDEN.filter(k=>f[k]!==''&&f[k]!=null&&f[k]!==false);
-  const sin=(g,k)=>({...g,[k]:k==='precio_max'?null:k==='agua'?false:''});
+  const activos=ORDEN.filter(k=>{const v=f[k];
+    return Array.isArray(v)?v.length>0:(v!==''&&v!=null&&v!==false);});
+  const sin=(g,k)=>({...g,[k]:k==='precio_max'?null:k==='agua'?false:k==='libres'?[]:''});
   for(const k of activos){
     r=puntuar(sin(f,k));
     if(!r.length) continue;
@@ -248,6 +272,7 @@ function pintar(f){
   if(f.precio_max) tags.push('hasta '+CLP(f.precio_max));
   if(f.precio_min) tags.push('desde '+CLP(f.precio_min));
   if(f.agua) tags.push('resistente al agua');
+  (f.libres||[]).forEach(w=>tags.push('"'+w+'"'));
   document.getElementById('leyenda').innerHTML='Entendí: '+(tags.length
     ? tags.map(t=>`<span class="tag">${t}</span>`).join('')
     : '<span class="tag">búsqueda abierta</span>');
@@ -265,10 +290,16 @@ function pintar(f){
   }
   cont.innerHTML=aviso+resultados.map(r=>{
     const a=r.p.a;
-    const desc=[r.p.tipo,a.correa&&'correa '+a.correa,a.tono,
-      a.esfera&&'esfera '+a.esfera,r.p.tam&&r.p.tam+' mm',
-      r.p.res&&r.p.res!=='WR'&&r.p.res].filter(Boolean).join(' · ');
+    const desc = a.descripcion ? a.descripcion
+      : [r.p.tipo,a.correa&&'correa '+a.correa,a.tono,
+         a.esfera&&'esfera '+a.esfera,r.p.tam&&r.p.tam+' mm',
+         r.p.res&&r.p.res!=='WR'&&r.p.res].filter(Boolean).join(' · ');
+    const img = r.p.foto
+      ? `<img class="foto" loading="lazy" src="${r.p.foto}" alt="${r.p.codigo}"
+             onerror="this.style.visibility='hidden'">`
+      : '<div class="foto"></div>';
     return `<div class="ficha">
+      ${img}
       <div class="cuerpo">
         <div class="codigo">${r.p.codigo}</div>
         <div class="attrs">${desc}</div>

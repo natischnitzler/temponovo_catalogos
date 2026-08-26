@@ -26,6 +26,7 @@ const API_KEY       = process.env.ANTHROPIC_API_KEY;
 
 const FAMILIA  = process.env.FAMILIA || 'Relojes Casio';
 const SALIDA   = process.env.SALIDA  || './catalogo.json';
+const DIR_FOTOS = process.env.DIR_FOTOS || './fotos';
 const MODELO   = 'claude-sonnet-4-6';
 const LOTE     = 5;   // fotos por llamada de análisis
 const PARALELO = 3;   // llamadas simultáneas
@@ -254,9 +255,12 @@ async function main() {
       write_date: f.write_date,
       hash_foto: antes ? antes.hash_foto : null,
       atributos: antes ? antes.atributos : null,
+      foto: antes ? (antes.foto || null) : null,
     };
-    // Nivel 1: solo bajamos la foto si nunca la vimos o si el producto se tocó.
-    if (!antes || !antes.atributos || antes.write_date !== f.write_date) {
+    // Nivel 1: bajamos la foto si nunca la vimos, si el producto se tocó,
+    // o si la miniatura no está en el repo.
+    const faltaFoto = !productos[f.codigo].foto || !fs.existsSync(productos[f.codigo].foto);
+    if (!antes || !antes.atributos || antes.write_date !== f.write_date || faltaFoto) {
       revisar.push(f.raw_code);
     }
   }
@@ -270,18 +274,28 @@ async function main() {
   const imgs = await fetchImagenesEnLote(revisar);
 
   // Nivel 2: de los revisados, solo analizamos los que además cambiaron de foto.
+  if (!fs.existsSync(DIR_FOTOS)) fs.mkdirSync(DIR_FOTOS, { recursive: true });
+  const EXT = { 'image/jpeg':'jpg', 'image/png':'png', 'image/gif':'gif', 'image/webp':'webp' };
   const pendientes = [];
-  let formatoRaro = 0;
+  let formatoRaro = 0, fotosNuevas = 0;
   for (const [rawCode, img] of Object.entries(imgs)) {
     const codigo = porRaw[rawCode];
     const prep = prepararImagen(img);
     if (!prep) { formatoRaro++; continue; }   // formato que la API no acepta
+
+    // Miniatura al repo: la página la carga directo, sin inflar catalogo.json.
+    const ruta = `${DIR_FOTOS}/${codigo}.${EXT[prep.media_type]}`;
+    fs.writeFileSync(ruta, Buffer.from(prep.data, 'base64'));
+    productos[codigo].foto = ruta.replace(/^\.\//, '');
+    fotosNuevas++;
+
     const h = hash(prep.data);
     if (productos[codigo].hash_foto === h && productos[codigo].atributos) continue;
     productos[codigo].hash_foto = h;
     pendientes.push({ codigo, img: prep.data, media_type: prep.media_type });
   }
   if (formatoRaro) console.log(`  ⚠️  ${formatoRaro} fotos en formato no soportado, se omiten`);
+  if (fotosNuevas) console.log(`🖼️  ${fotosNuevas} miniaturas guardadas en ${DIR_FOTOS}/`);
   console.log(`🖼️  ${pendientes.length} fotos nuevas o cambiadas por analizar`);
 
   const lotes = [];
