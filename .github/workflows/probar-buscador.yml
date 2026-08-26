@@ -1,0 +1,37 @@
+name: Probar buscador Casio
+
+on:
+  workflow_dispatch:
+    inputs:
+      consulta:
+        description: 'Lo que pediría el cliente'
+        required: true
+        default: 'quiero un reloj vintage dorado de mujer'
+
+jobs:
+  probar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Buscar
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CONSULTA: ${{ inputs.consulta }}
+        run: |
+          npm install
+          if [ ! -f catalogo.json ]; then
+            echo "Falta catalogo.json. Corre primero el workflow 'Construir base de búsqueda Casio'." >&2
+            exit 1
+          fi
+          {
+            echo "## $CONSULTA"
+            echo ''
+            echo '```'
+            node buscar.js "$CONSULTA" 2>&1
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
