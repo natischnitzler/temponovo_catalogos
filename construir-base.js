@@ -126,26 +126,39 @@ async function fetchCaracteristicas() {
   } catch (e) { console.log('  ⚠️  Sin fichas técnicas:', e.message); return {}; }
 }
 
+// image_256 en vez de image_512: cuatro veces más liviano y suficiente para
+// distinguir color y material. Lotes chicos y backoff largo, porque Odoo corta
+// las llamadas XML-RPC pesadas y antes se perdían en silencio.
+const CAMPO_IMG  = process.env.CAMPO_IMG || 'image_256';
+const BATCH_IMG  = Number(process.env.BATCH_IMG || 4);
+const REINTENTOS = 5;
+const espera = ms => new Promise(r => setTimeout(r, ms));
+
 async function fetchImagenesEnLote(codes) {
   if (!codes.length) return {};
-  const BATCH = 10, REINTENTOS = 3, imgs = {};
-  for (let i = 0; i < codes.length; i += BATCH) {
-    const batch = codes.slice(i, i + BATCH);
+  const imgs = {}, fallidos = [];
+  for (let i = 0; i < codes.length; i += BATCH_IMG) {
+    const batch = codes.slice(i, i + BATCH_IMG);
+    let ok = false, ultimoError = '';
     for (let intento = 1; intento <= REINTENTOS; intento++) {
       try {
         const raw = await odooCall('product.product', 'search_read', [
-          [['default_code', 'in', batch]], ['default_code', 'image_512']
+          [['default_code', 'in', batch]], ['default_code', CAMPO_IMG]
         ]);
-        for (const p of raw) if (p.image_512) imgs[p.default_code] = p.image_512;
+        for (const p of raw) if (p[CAMPO_IMG]) imgs[p.default_code] = p[CAMPO_IMG];
+        ok = true;
         break;
       } catch (e) {
-        if (intento < REINTENTOS) await new Promise(r => setTimeout(r, 2000 * intento));
-        else console.log(`  ⚠️  Lote de imágenes falló: ${e.message}`);
+        ultimoError = e.message || String(e);
+        if (intento < REINTENTOS) await espera(1500 * Math.pow(2, intento - 1));
       }
     }
-    process.stdout.write(`\r  Fotos: ${Math.min(i + BATCH, codes.length)}/${codes.length}`);
+    if (!ok) { fallidos.push(...batch); console.log(`\n  ⚠️  ${batch.join(', ')} → ${ultimoError}`); }
+    await espera(250);
+    process.stdout.write(`\r  Fotos: ${Object.keys(imgs).length} bajadas de ${Math.min(i + BATCH_IMG, codes.length)} pedidas`);
   }
   console.log('');
+  if (fallidos.length) console.log(`  ⚠️  ${fallidos.length} imágenes no se bajaron. Quedan pendientes para la próxima corrida.`);
   return imgs;
 }
 
@@ -222,7 +235,8 @@ async function main() {
   }
 
   const total = Object.keys(productos).length;
-  console.log(`${total} productos · ${total - revisar.length} sin cambios · ${revisar.length} a revisar`);
+  const yaListos = Object.values(productos).filter(p => p.atributos).length;
+  console.log(`${total} productos · ${yaListos} ya tenían atributos · ${revisar.length} a revisar`);
 
   const porRaw = {};
   filas.forEach(f => porRaw[f.raw_code] = f.codigo);
@@ -269,7 +283,10 @@ async function main() {
   escribir(productos);
   const sin = Object.values(productos).filter(p => !p.atributos).length;
   console.log(`✅ ${SALIDA} · ${total} productos · ${sin} sin atributos` +
-              (fallidos ? ` · ${fallidos} fallaron, se reintentan la próxima corrida` : ''));
+              (fallidos ? ` · ${fallidos} fallaron en el análisis` : ''));
+  if (sin > total * 0.1) {
+    console.log(`⚠️  Quedan ${sin} productos sin atributos (más del 10%). Vuelve a correr el workflow: retoma solo los que faltan.`);
+  }
 }
 
 function escribir(productos) {
