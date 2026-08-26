@@ -177,11 +177,22 @@ Reglas:
 - Los despertadores y relojes murales no tienen correa: usa "" en correa.
 Sin texto fuera del JSON.`;
 
+/** Odoo guarda las fotos en PNG o JPEG según cómo se cargaron: hay que
+ *  declarar el tipo real, no uno fijo, o la API rechaza la imagen. */
+function tipoImagen(b64) {
+  const c = (b64 || '').slice(0, 12);
+  if (c.startsWith('/9j/'))        return 'image/jpeg';
+  if (c.startsWith('iVBORw0KGgo')) return 'image/png';
+  if (c.startsWith('R0lGOD'))      return 'image/gif';
+  if (c.startsWith('UklGR'))       return 'image/webp';
+  return null;   // formato desconocido: se descarta
+}
+
 async function analizarLote(lote) {
   const content = [];
   lote.forEach((p, i) => {
     content.push({ type: 'text', text: `Foto ${i + 1} — ${p.codigo}` });
-    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: p.img } });
+    content.push({ type: 'image', source: { type: 'base64', media_type: tipoImagen(p.img), data: p.img } });
   });
   content.push({ type: 'text', text: INSTRUCCIONES });
 
@@ -244,16 +255,16 @@ async function main() {
 
   // Nivel 2: de los revisados, solo analizamos los que además cambiaron de foto.
   const pendientes = [];
+  let formatoRaro = 0;
   for (const [rawCode, img] of Object.entries(imgs)) {
     const codigo = porRaw[rawCode];
+    if (!tipoImagen(img)) { formatoRaro++; continue; }   // formato que la API no acepta
     const h = hash(img);
-    if (productos[codigo].hash_foto === h && productos[codigo].atributos) {
-      productos[codigo].hash_foto = h;
-      continue;
-    }
+    if (productos[codigo].hash_foto === h && productos[codigo].atributos) continue;
     productos[codigo].hash_foto = h;
     pendientes.push({ codigo, img });
   }
+  if (formatoRaro) console.log(`  ⚠️  ${formatoRaro} fotos en formato no soportado, se omiten`);
   console.log(`🖼️  ${pendientes.length} fotos nuevas o cambiadas por analizar`);
 
   const lotes = [];
