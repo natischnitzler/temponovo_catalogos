@@ -1,4 +1,4 @@
-name: Construir base de búsqueda Casio
+name: Construir base de búsqueda
 
 on:
   schedule:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   construir:
     runs-on: ubuntu-latest
-    timeout-minutes: 60     # la primera corrida analiza 943 fotos
+    timeout-minutes: 330    # la primera corrida del catálogo completo es larga
 
     steps:
       - name: Bajar el repo
@@ -28,6 +28,9 @@ jobs:
           ODOO_USERNAME:     ${{ secrets.ODOO_USERNAME }}
           ODOO_PASSWORD:     ${{ secrets.ODOO_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Vacío = catálogo completo. Para acotar:
+          # FAMILIAS: "Relojes Casio,Calculadoras Casio"
+          FAMILIAS: ""
         run: |
           npm install
           node construir-base.js
