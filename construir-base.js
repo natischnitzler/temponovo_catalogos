@@ -27,7 +27,7 @@ const API_KEY       = process.env.ANTHROPIC_API_KEY;
 const FAMILIA  = process.env.FAMILIA || 'Relojes Casio';
 const SALIDA   = process.env.SALIDA  || './catalogo.json';
 const MODELO   = 'claude-sonnet-4-6';
-const LOTE     = 6;   // fotos por llamada
+const LOTE     = 5;   // fotos por llamada de análisis
 const PARALELO = 3;   // llamadas simultáneas
 
 if (!ODOO_USERNAME || !ODOO_PASSWORD) {
@@ -168,38 +168,54 @@ const INSTRUCCIONES = `Eres un vendedor de relojes describiendo el inventario pa
 Mira CADA foto y describe lo que realmente ves, no lo que sugiere el código.
 
 Devuelve SOLO un array JSON, un objeto por foto y en el mismo orden en que aparecen:
-{"correa":"acero|resina|cuero|malla|tela|bicolor|","tono":"plateado|dorado|negro|azul|verde|rojo|rosa|blanco|beige|gris|marron|oro rosa|transparente|multicolor","caja":"color de la caja en una palabra","esfera":"color de la esfera en una palabra","estilo":"vestir|casual|deportivo|vintage|militar|urbano"}
+{"correa":"acero|resina|cuero|malla|tela|bicolor|","tono":"plateado|dorado|negro|azul|verde|rojo|rosa|blanco|beige|gris|marron|oro rosa|transparente|multicolor","caja":"color de la caja en una palabra","esfera":"color de la esfera en una palabra","patron":"","funciones":[],"descripcion":""}
 
 Reglas:
 - "tono" es el color dominante de la correa.
 - Si la caja y la correa son de dos metales distintos (plata y oro), correa es "bicolor".
 - "caja" va aparte del tono: caja dorada con correa de cuero café es correa "cuero", tono "marron", caja "dorado".
+- "patron": el estampado o textura visible de la esfera si lo hay (flores, olas, camuflaje, cuadriculado, rayas, mármol, degradado, calado). Vacío si es lisa.
+- "funciones": lo que se ve en la esfera o la caja (calculadora, cronografo, calendario, luz, bisel giratorio, alarma, solar, brujula, mundial). Lista vacía si no se distingue nada.
+- "descripcion": UNA frase corta y natural, como se lo describirías a un cliente por teléfono. Menciona todo lo llamativo: forma, estampado, contraste de colores, aire retro o deportivo. Ejemplo: "digital cuadrado dorado con la pantalla estampada de flores, estilo vintage de los noventa".
 - Los despertadores y relojes murales no tienen correa: usa "" en correa.
 Sin texto fuera del JSON.`;
 
-/** Odoo guarda las fotos en PNG o JPEG según cómo se cargaron: hay que
- *  declarar el tipo real, no uno fijo, o la API rechaza la imagen. */
-function tipoImagen(b64) {
-  const c = (b64 || '').slice(0, 12);
-  if (c.startsWith('/9j/'))        return 'image/jpeg';
-  if (c.startsWith('iVBORw0KGgo')) return 'image/png';
-  if (c.startsWith('R0lGOD'))      return 'image/gif';
-  if (c.startsWith('UklGR'))       return 'image/webp';
-  return null;   // formato desconocido: se descarta
+/** Odoo por XML-RPC puede entregar la foto como Buffer o como texto base64
+ *  con saltos de línea. En vez de confiar en el texto, decodificamos los bytes,
+ *  miramos los magic bytes reales y volvemos a codificar limpio.
+ *  Devuelve {data, media_type} o null si el formato no sirve. */
+function prepararImagen(valor) {
+  let bytes;
+  try {
+    if (Buffer.isBuffer(valor)) bytes = valor;
+    else if (typeof valor === 'string') bytes = Buffer.from(valor.replace(/\s/g, ''), 'base64');
+    else return null;
+  } catch { return null; }
+  if (!bytes || bytes.length < 12) return null;
+
+  let media_type = null;
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) media_type = 'image/png';
+  else if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF)                  media_type = 'image/jpeg';
+  else if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46)                  media_type = 'image/gif';
+  else if (bytes.slice(0, 4).toString('ascii') === 'RIFF' &&
+           bytes.slice(8, 12).toString('ascii') === 'WEBP')                              media_type = 'image/webp';
+  if (!media_type) return null;
+
+  return { data: bytes.toString('base64'), media_type };
 }
 
 async function analizarLote(lote) {
   const content = [];
   lote.forEach((p, i) => {
     content.push({ type: 'text', text: `Foto ${i + 1} — ${p.codigo}` });
-    content.push({ type: 'image', source: { type: 'base64', media_type: tipoImagen(p.img), data: p.img } });
+    content.push({ type: 'image', source: { type: 'base64', media_type: p.media_type, data: p.img } });
   });
   content.push({ type: 'text', text: INSTRUCCIONES });
 
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: MODELO, max_tokens: 1500, messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ model: MODELO, max_tokens: 2500, messages: [{ role: 'user', content }] }),
   });
   if (!r.ok) throw new Error(`API ${r.status}: ${(await r.text()).slice(0, 160)}`);
   const d = await r.json();
@@ -258,11 +274,12 @@ async function main() {
   let formatoRaro = 0;
   for (const [rawCode, img] of Object.entries(imgs)) {
     const codigo = porRaw[rawCode];
-    if (!tipoImagen(img)) { formatoRaro++; continue; }   // formato que la API no acepta
-    const h = hash(img);
+    const prep = prepararImagen(img);
+    if (!prep) { formatoRaro++; continue; }   // formato que la API no acepta
+    const h = hash(prep.data);
     if (productos[codigo].hash_foto === h && productos[codigo].atributos) continue;
     productos[codigo].hash_foto = h;
-    pendientes.push({ codigo, img });
+    pendientes.push({ codigo, img: prep.data, media_type: prep.media_type });
   }
   if (formatoRaro) console.log(`  ⚠️  ${formatoRaro} fotos en formato no soportado, se omiten`);
   console.log(`🖼️  ${pendientes.length} fotos nuevas o cambiadas por analizar`);
