@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buscador Casio · Temponovo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--papel:#F6F7F6;--tinta:#141C1B;--teal:#06766C;--teal-claro:#E4F0EE;
+  --gris:#687876;--linea:#DFE5E3;--blanco:#fff;--alerta:#B4531F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--papel);color:var(--tinta);
+  font-family:'Space Grotesk',system-ui,sans-serif;font-size:15px;line-height:1.45}
+.wrap{max-width:860px;margin:0 auto;padding:18px 14px 70px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:12px;border-bottom:2px solid var(--tinta);margin-bottom:18px;flex-wrap:wrap}
+h1{font-size:19px;font-weight:700;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--teal)}
+.meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--gris);
+  text-transform:uppercase;letter-spacing:.07em}
+.buscador{display:flex;gap:8px;margin-bottom:10px}
+input{flex:1;padding:14px 15px;border:1.5px solid var(--linea);border-radius:2px;
+  background:var(--blanco);font-family:inherit;font-size:16px;color:var(--tinta)}
+input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
+button{padding:14px 20px;border:none;border-radius:2px;background:var(--teal);color:#fff;
+  font-family:inherit;font-size:15px;font-weight:500;cursor:pointer}
+button:hover{background:#055C55}
+.ejemplos{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.chip{font-size:12.5px;padding:6px 11px;border:1px solid var(--linea);border-radius:100px;
+  background:var(--blanco);color:var(--gris);cursor:pointer}
+.chip:hover{border-color:var(--teal);color:var(--teal)}
+.leyenda{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--gris);
+  margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.tag{background:var(--teal-claro);color:var(--teal);padding:3px 8px;border-radius:2px;font-weight:500}
+.aviso{background:#FDF3EC;border-left:3px solid var(--alerta);color:#8A431C;
+  padding:11px 14px;margin-bottom:12px;font-size:13.5px}
+.ficha{display:flex;gap:12px;background:var(--blanco);border:1px solid var(--linea);
+  border-left:3px solid var(--teal);padding:12px 14px;margin-bottom:8px;align-items:center}
+.foto{width:58px;height:58px;object-fit:contain;flex-shrink:0;background:#fafbfb}
+.cuerpo{flex:1;min-width:0}
+.codigo{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:15px}
+.attrs{font-size:12.5px;color:var(--gris);margin-top:2px}
+.porque{font-size:12px;color:var(--teal);margin-top:4px}
+.precio{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;text-align:right;white-space:nowrap}
+.precio small{display:block;font-weight:400;font-size:9.5px;color:var(--gris);letter-spacing:.05em}
+.vacio{padding:36px 0;text-align:center;color:var(--gris);font-size:14px}
+@media(max-width:520px){.buscador{flex-direction:column}.foto{width:46px;height:46px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Buscador Casio <span>Temponovo</span></h1>
+    <div class="meta" id="meta">cargando…</div>
+  </header>
+
+  <div class="buscador">
+    <input id="q" type="text" placeholder="¿Qué busca el cliente?" autocomplete="off">
+    <button id="btn">Buscar</button>
+  </div>
+  <div class="ejemplos" id="ejemplos"></div>
+  <div id="leyenda"></div>
+  <div id="resultados"></div>
+</div>
+
+<script>
+/* ═══ Diccionario: frase del cliente → filtros. Sin llamadas, todo local. ═══ */
+const D = {
+  tono: {
+    dorado:['dorado','dorada','oro','gold','dorados'], plateado:['plateado','plateada','plata','acero','silver'],
+    negro:['negro','negra'], azul:['azul','azules'], verde:['verde'], rojo:['rojo','roja','burdeos'],
+    rosa:['rosa','rosado','rosada','pink'], blanco:['blanco','blanca'], beige:['beige','crema','hueso'],
+    gris:['gris'], marron:['marron','marrón','cafe','café','habano'],
+    'oro rosa':['oro rosa','rose gold','rosé','oro rosado'], transparente:['transparente','translucido','translúcido'],
+  },
+  correa: {
+    acero:['metal','metalica','metálica','acero','metálico','metalico','pulsera de metal'],
+    resina:['resina','goma','plastico','plástico','caucho','silicona'],
+    cuero:['cuero','piel','correa de cuero'], malla:['malla','milanesa','mesh'],
+    tela:['tela','nylon','género'], bicolor:['bicolor','dos tonos','combinado','plata y oro'],
+  },
+  genero: {
+    mujer:['mujer','dama','damas','femenino','femenina','señora','niña','ella','esposa','mamá','mama'],
+    hombre:['hombre','varon','varón','masculino','caballero','señor','niño','él','esposo','papá','papa'],
+  },
+  tipo: {
+    calculadora:['calculadora','con calculadora'], databank:['databank','agenda'],
+    digital:['digital','digitales'], 'analógico':['analogico','analógico','análogo','de agujas','manecillas'],
+    'ana-digi':['anadigi','ana-digi','analogico digital'], 'G-Shock':['g-shock','gshock','g shock'],
+    despertador:['despertador','despertadores','velador'], 'reloj mural':['mural','de pared','pared'],
+    'cronómetro':['cronometro','cronómetro','arbitro','árbitro'],
+  },
+  estilo: {
+    vestir:['elegante','formal','vestir','fino','fina','elegantes','de salida','para la oficina'],
+    deportivo:['deporte','deportivo','deportiva','correr','running','gimnasio','gym','nadar','natacion','natación','piscina','entrenar'],
+    vintage:['vintage','retro','antiguo','antigua','clasico','clásico','de los 90','ochentero'],
+    casual:['casual','diario','para el día','sencillo'], militar:['militar','camuflado','tactico','táctico'],
+    urbano:['urbano','moderno','juvenil'],
+  },
+};
+const CON_AGUA = ['nadar','natacion','natación','piscina','mar','playa','sumergible','agua','buceo','ducha'];
+
+function normalizar(s){
+  return ' ' + s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9\s.]/g,' ').replace(/\s+/g,' ') + ' ';
+}
+function detectar(txt, grupo){
+  for (const [valor, palabras] of Object.entries(grupo)){
+    for (const p of palabras){
+      const pn = p.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if (txt.includes(' ' + pn + ' ') || txt.includes(' ' + pn + 's ')) return valor;
+    }
+  }
+  return '';
+}
+/* "menos de 20 mil", "bajo 20.000", "hasta 30 lucas", "sobre 50 mil" */
+function detectarPrecio(txt){
+  let max = null, min = null;
+  const num = s => {
+    let n = parseFloat(s.replace(/\./g,'').replace(',','.'));
+    return n < 1000 ? Math.round(n * 1000) : Math.round(n);
+  };
+  let m = txt.match(/(?:menos de|bajo|hasta|maximo|máximo|no mas de|no más de|menor a)\s*\$?\s*([\d.,]+)\s*(mil|lucas|k)?/);
+  if (m) max = num(m[1]);
+  m = txt.match(/(?:mas de|más de|sobre|desde|minimo|mínimo|mayor a)\s*\$?\s*([\d.,]+)\s*(mil|lucas|k)?/);
+  if (m) min = num(m[1]);
+  m = txt.match(/entre\s*\$?\s*([\d.,]+)\s*(?:mil|lucas|k)?\s*(?:y|a)\s*\$?\s*([\d.,]+)\s*(mil|lucas|k)?/);
+  if (m){ min = num(m[1]); max = num(m[2]); }
+  return { precio_max: max, precio_min: min };
+}
+function interpretar(frase){
+  const t = normalizar(frase);
+  const f = {
+    tipo: detectar(t, D.tipo), genero: detectar(t, D.genero), correa: detectar(t, D.correa),
+    tono: detectar(t, D.tono), estilo: detectar(t, D.estilo),
+    agua: CON_AGUA.some(p => t.includes(' ' + p + ' ')),
+    ...detectarPrecio(t),
+  };
+  if (f.estilo === 'deportivo') f.agua = true;
+  // "correa de metal" no debe además pintar el reloj de plateado
+  if (f.correa === 'acero' && f.tono === 'plateado' && /metal|acero/.test(t)) f.tono = '';
+  return f;
+}
+
+/* ═══ Tipo y género salen del código; el resto de las fotos ═══ */
+const SERIES = {CA:['calculadora','unisex'],DBC:['calculadora','unisex'],DB:['databank','unisex'],
+LTP:['analógico','mujer'],LQ:['analógico','mujer'],LA:['digital','mujer'],LW:['digital','mujer'],
+LWS:['digital','mujer'],LRW:['analógico','mujer'],LX:['analógico','mujer'],LF:['digital','unisex'],
+MTP:['analógico','hombre'],MTD:['analógico','hombre'],MDV:['analógico','hombre'],MRW:['analógico','hombre'],
+MQ:['analógico','unisex'],MW:['analógico','hombre'],MWA:['ana-digi','hombre'],MWD:['digital','hombre'],
+MCW:['ana-digi','hombre'],MTS:['analógico','hombre'],AQ:['ana-digi','unisex'],AW:['ana-digi','unisex'],
+AMW:['ana-digi','hombre'],AEQ:['ana-digi','hombre'],AQS:['ana-digi','hombre'],AE:['digital','unisex'],
+A:['digital','unisex'],ABL:['digital','unisex'],B:['digital','unisex'],F:['digital','unisex'],
+W:['digital','unisex'],WS:['digital','hombre'],WSB:['digital','hombre'],DW:['digital','hombre'],
+HDC:['ana-digi','hombre'],BMS:['analógico','hombre'],HS:['cronómetro','unisex'],
+TQ:['despertador','hogar'],DQ:['despertador','hogar'],PQ:['despertador','hogar'],
+IQ:['reloj mural','hogar'],ID:['reloj mural','hogar']};
+
+function derivar(p){
+  const cat = (p.categoria||'').toUpperCase();
+  if (cat.includes('G-SHOCK')) return {tipo:'G-Shock',genero:'unisex'};
+  if (cat.includes('EDIFICE')) return {tipo:'analógico',genero:'hombre'};
+  const serie = (p.codigo.match(/^[A-Z]+/)||[''])[0];
+  for (let n=4;n>=1;n--){ const s = SERIES[serie.slice(0,n)]; if (s) return {tipo:s[0],genero:s[1]}; }
+  return {tipo:'',genero:''};
+}
+function parseSpec(spec=''){
+  let res=null;
+  if(/20\s*bar|200\s*m\b/i.test(spec)) res='200m';
+  else if(/1[01]\s*bar|100\s*m\b/i.test(spec)) res='100m';
+  else if(/5\s*bar|50\s*m\b/i.test(spec)) res='50m';
+  else if(/\bWR\b/i.test(spec)) res='WR';
+  const m = spec.match(/(\d{2,3})\s*(?:x\s*\d+\s*)?mm/i);
+  return {res, tam: m?Number(m[1]):null};
+}
+
+let BASE = [];
+function puntuar(f){
+  const out=[];
+  for(const p of BASE){
+    const a=p.a; let pts=1, razones=[], fuera=false;
+    if(f.tipo){
+      if(p.tipo===f.tipo){pts+=5;razones.push(f.tipo);}
+      else if(['calculadora','databank','G-Shock','despertador','reloj mural'].includes(f.tipo)) fuera=true;
+      else pts-=2;
+    } else if(['despertador','reloj mural','cronómetro'].includes(p.tipo)) pts-=4;
+    if(f.genero){
+      if(p.genero===f.genero){pts+=4;razones.push(p.genero);}
+      else if(p.genero==='unisex') pts+=1; else fuera=true;
+    }
+    if(f.correa){
+      if(a.correa===f.correa){pts+=4;razones.push('correa '+a.correa);}
+      else if(f.correa==='acero'&&['malla','bicolor'].includes(a.correa)){pts+=3;razones.push('correa '+a.correa);}
+      else if(a.correa) fuera=true;
+    }
+    if(f.tono){
+      if(a.tono===f.tono){pts+=4;razones.push(a.tono);}
+      else if(a.caja===f.tono){pts+=2;razones.push('caja '+a.caja);}
+      else if(f.tono==='dorado'&&a.correa==='bicolor'){pts+=2;razones.push('bicolor');}
+      else if((a.esfera||'').toLowerCase().includes(f.tono)){pts+=2;razones.push('esfera '+a.esfera);}
+      else pts-=1;
+    }
+    if(f.estilo){
+      if(a.estilo===f.estilo){pts+=3;razones.push(a.estilo);}
+      else if(f.estilo==='deportivo'&&p.res==='200m') pts+=1; else pts-=1;
+    }
+    if(f.agua){
+      if(p.res==='200m'){pts+=3;razones.push('200 m');}
+      else if(p.res==='100m'){pts+=2;razones.push('100 m');}
+      else if(p.res==='50m') pts+=1; else pts-=3;
+    }
+    if(f.precio_max!=null){ if(p.precio>f.precio_max) fuera=true; else pts+=1; }
+    if(f.precio_min!=null && p.precio<f.precio_min) fuera=true;
+    if(!fuera&&pts>0) out.push({p,pts,razones});
+  }
+  out.sort((x,y)=>y.pts-x.pts||x.p.precio-y.p.precio);
+  return out;
+}
+const ORDEN=['estilo','tono','correa','tipo','genero','agua','precio_max'];
+const NOMBRE={estilo:'el estilo',tono:'el color',correa:'el material de la correa',
+ tipo:'el tipo de reloj',genero:'que sea de hombre o mujer',agua:'la resistencia al agua',
+ precio_max:'el presupuesto'};
+
+function buscar(f){
+  let r=puntuar(f);
+  if(r.length) return {resultados:r.slice(0,8),soltados:[]};
+  const activos=ORDEN.filter(k=>f[k]!==''&&f[k]!=null&&f[k]!==false);
+  const sin=(g,k)=>({...g,[k]:k==='precio_max'?null:k==='agua'?false:''});
+  for(const k of activos){
+    r=puntuar(sin(f,k));
+    if(!r.length) continue;
+    if(k==='precio_max') r.sort((x,y)=>x.p.precio-y.p.precio);
+    return {resultados:r.slice(0,8),soltados:[k]};
+  }
+  let g={...f}, soltados=[];
+  for(const k of activos){ soltados.push(k); g=sin(g,k); r=puntuar(g);
+    if(r.length) return {resultados:r.slice(0,8),soltados}; }
+  return {resultados:[],soltados};
+}
+
+const CLP=n=>'$'+n.toLocaleString('es-CL');
+function pintar(f){
+  const {resultados,soltados}=buscar(f);
+  const tags=[];
+  ['tipo','genero','correa','tono','estilo'].forEach(k=>{if(f[k])tags.push(f[k]);});
+  if(f.precio_max) tags.push('hasta '+CLP(f.precio_max));
+  if(f.precio_min) tags.push('desde '+CLP(f.precio_min));
+  if(f.agua) tags.push('resistente al agua');
+  document.getElementById('leyenda').innerHTML='Entendí: '+(tags.length
+    ? tags.map(t=>`<span class="tag">${t}</span>`).join('')
+    : '<span class="tag">búsqueda abierta</span>');
+
+  const cont=document.getElementById('resultados');
+  if(!resultados.length){
+    cont.innerHTML='<div class="vacio">No tengo nada en el catálogo que se acerque a eso.</div>'; return;
+  }
+  let aviso='';
+  if(soltados.includes('precio_max')){
+    const min=Math.min(...resultados.map(r=>r.p.precio));
+    aviso=`<div class="aviso">Bajo ${CLP(f.precio_max)} no hay nada que sirva. Lo más económico parte en <strong>${CLP(min)}</strong>.</div>`;
+  } else if(soltados.length){
+    aviso=`<div class="aviso">No hay exactamente eso. Solté <strong>${NOMBRE[soltados[soltados.length-1]]}</strong> y esto es lo más parecido.</div>`;
+  }
+  cont.innerHTML=aviso+resultados.map(r=>{
+    const a=r.p.a;
+    const desc=[r.p.tipo,a.correa&&'correa '+a.correa,a.tono,
+      a.esfera&&'esfera '+a.esfera,r.p.tam&&r.p.tam+' mm',
+      r.p.res&&r.p.res!=='WR'&&r.p.res].filter(Boolean).join(' · ');
+    return `<div class="ficha">
+      <div class="cuerpo">
+        <div class="codigo">${r.p.codigo}</div>
+        <div class="attrs">${desc}</div>
+        ${r.razones.length?`<div class="porque">Coincide en: ${r.razones.join(', ')}</div>`:''}
+      </div>
+      <div class="precio">${CLP(r.p.precio)}<small>+ IVA</small></div>
+    </div>`;
+  }).join('');
+}
+
+const EJEMPLOS=['reloj calculadora con correa de metal','reloj de mujer dorado elegante',
+ 'algo para hacer deporte, azul','de hombre para vestir bajo 30 mil','un vintage dorado'];
+document.getElementById('ejemplos').innerHTML=EJEMPLOS.map(e=>`<span class="chip">${e}</span>`).join('');
+document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+  document.getElementById('q').value=c.textContent; lanzar();});
+
+function lanzar(){
+  const q=document.getElementById('q').value.trim();
+  if(!q||!BASE.length) return;
+  pintar(interpretar(q));
+}
+document.getElementById('btn').onclick=lanzar;
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')lanzar();});
+
+fetch('./catalogo.json?v='+Date.now())
+  .then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d=>{
+    BASE=Object.values(d.productos).map(p=>({...p,...derivar(p),...parseSpec(p.spec),a:p.atributos||{}}));
+    const fecha=d.generado?new Date(d.generado).toLocaleDateString('es-CL'):'';
+    document.getElementById('meta').textContent=`${BASE.length} referencias · ${fecha}`;
+  })
+  .catch(e=>{
+    document.getElementById('meta').textContent='sin base';
+    document.getElementById('resultados').innerHTML=
+      '<div class="vacio">No se pudo cargar catalogo.json.<br>Corre primero el workflow "Construir base de búsqueda Casio".</div>';
+  });
+</script>
+</body>
+</html>
