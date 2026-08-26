@@ -24,7 +24,8 @@ const ODOO_USERNAME = process.env.ODOO_USERNAME;
 const ODOO_PASSWORD = process.env.ODOO_PASSWORD;
 const API_KEY       = process.env.ANTHROPIC_API_KEY;
 
-const FAMILIA  = process.env.FAMILIA || 'Relojes Casio';
+// Vacío = todo el catálogo. O una lista: FAMILIAS="Relojes Casio,Calculadoras Casio"
+const FAMILIAS = (process.env.FAMILIAS || '').split(',').map(x => x.trim()).filter(Boolean);
 const SALIDA   = process.env.SALIDA  || './catalogo.json';
 const DIR_FOTOS = process.env.DIR_FOTOS || './fotos';
 const MODELO   = 'claude-sonnet-4-6';
@@ -109,8 +110,9 @@ async function fetchProductos() {
     }))
     .filter(p => p.stock > 0 || p.incoming > 0)
     .filter(p => !/mal estado/i.test(p.nombre))
-    .filter(p => p.codigo && perteneceAFamilia(p.categoria, FAMILIA));
-  console.log(`✅ ${productos.length} productos de "${FAMILIA}" con stock`);
+    .filter(p => p.codigo)
+    .filter(p => !FAMILIAS.length || FAMILIAS.some(f => perteneceAFamilia(p.categoria, f)));
+  console.log(`✅ ${productos.length} productos con stock${FAMILIAS.length ? ' en ' + FAMILIAS.join(', ') : ' (catálogo completo)'}`);
   return productos;
 }
 
@@ -164,21 +166,22 @@ async function fetchImagenesEnLote(codes) {
 }
 
 // ── Análisis visual ──────────────────────────────────────────────────────────
-const INSTRUCCIONES = `Eres un vendedor de relojes describiendo el inventario para un buscador.
+const INSTRUCCIONES = `Eres un vendedor describiendo el inventario de una relojería y regalería para un buscador. Hay relojes, calculadoras, despertadores, pilas, estuches y encendedores.
 
 Mira CADA foto y describe lo que realmente ves, no lo que sugiere el código.
 
 Devuelve SOLO un array JSON, un objeto por foto y en el mismo orden en que aparecen:
-{"correa":"acero|resina|cuero|malla|tela|bicolor|","tono":"plateado|dorado|negro|azul|verde|rojo|rosa|blanco|beige|gris|marron|oro rosa|transparente|multicolor","caja":"color de la caja en una palabra","esfera":"color de la esfera en una palabra","patron":"","funciones":[],"descripcion":""}
+{"correa":"","genero":"","tono":"","caja":"","esfera":"","patron":"","funciones":[],"descripcion":""}
 
-Reglas:
-- "tono" es el color dominante de la correa.
-- Si la caja y la correa son de dos metales distintos (plata y oro), correa es "bicolor".
-- "caja" va aparte del tono: caja dorada con correa de cuero café es correa "cuero", tono "marron", caja "dorado".
-- "patron": el estampado o textura visible de la esfera si lo hay (flores, olas, camuflaje, cuadriculado, rayas, mármol, degradado, calado). Vacío si es lisa.
-- "funciones": lo que se ve en la esfera o la caja (calculadora, cronografo, calendario, luz, bisel giratorio, alarma, solar, brujula, mundial). Lista vacía si no se distingue nada.
-- "descripcion": UNA frase corta y natural, como se lo describirías a un cliente por teléfono. Menciona todo lo llamativo: forma, estampado, contraste de colores, aire retro o deportivo. Ejemplo: "digital cuadrado dorado con la pantalla estampada de flores, estilo vintage de los noventa".
-- Los despertadores y relojes murales no tienen correa: usa "" en correa.
+- "correa": SOLO si es un reloj de pulsera. Uno de: acero, resina, cuero, malla, tela, bicolor. Vacío para todo lo demás.
+- "genero": mujer, hombre o unisex si el producto claramente apunta a uno (tamaño, forma, colores). Vacío si no aplica o no se distingue.
+- "tono": el color dominante del producto completo, en una palabra.
+- "caja": color de la caja o carcasa, en una palabra. Vacío si no aplica.
+- "esfera": color de la esfera o pantalla. Vacío si no es un reloj.
+- "patron": estampado o textura visible (flores, olas, camuflaje, cuadriculado, rayas, mármol, degradado). Vacío si es liso.
+- "funciones": lo que se ve (calculadora, cronografo, calendario, luz, bisel giratorio, alarma, solar, brujula, mundial, sumergible). Lista vacía si no se distingue nada.
+- "descripcion": UNA frase corta y natural, como se lo describirías a un cliente por teléfono. Menciona forma, colores, estampado y el aire general. Debe entenderse sola: NO la compares con otros modelos ni menciones otros códigos. Ejemplo: "digital cuadrado dorado con la pantalla estampada de flores, estilo vintage de los noventa".
+
 Sin texto fuera del JSON.`;
 
 /** Odoo por XML-RPC puede entregar la foto como Buffer o como texto base64
@@ -333,7 +336,7 @@ async function main() {
 
 function escribir(productos) {
   fs.writeFileSync(SALIDA, JSON.stringify({
-    generado: new Date().toISOString(), familia: FAMILIA, productos,
+    generado: new Date().toISOString(), familias: FAMILIAS.length ? FAMILIAS : ['todo'], productos,
   }, null, 1));
 }
 

@@ -45,6 +45,12 @@ button:hover{background:#055C55}
 .porque{font-size:12px;color:var(--teal);margin-top:4px}
 .precio{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:14px;text-align:right;white-space:nowrap}
 .precio small{display:block;font-weight:400;font-size:9.5px;color:var(--gris);letter-spacing:.05em}
+.pager{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px}
+.pager button{padding:9px 16px;font-size:16px;line-height:1}
+.pager button:disabled{background:#C8D2D0}
+.pager span{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gris)}
+.cat{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9AA8A6;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
 .vacio{padding:36px 0;text-align:center;color:var(--gris);font-size:14px}
 @media(max-width:520px){.buscador{flex-direction:column}.foto{width:46px;height:46px}}
 </style>
@@ -173,13 +179,30 @@ HDC:['ana-digi','hombre'],BMS:['analógico','hombre'],HS:['cronómetro','unisex'
 TQ:['despertador','hogar'],DQ:['despertador','hogar'],PQ:['despertador','hogar'],
 IQ:['reloj mural','hogar'],ID:['reloj mural','hogar']};
 
+/* La categoría de Odoo manda. Las series de código son de Casio y solo se
+   aplican ahí: un QQ que parta con "A" no es un digital Casio. */
+const POR_CATEGORIA = [
+  ['G-SHOCK','G-Shock'], ['EDIFICE','analógico'], ['DESPERTADOR','despertador'],
+  ['MURAL','reloj mural'], ['CRONO','cronómetro'], ['CALCULADORA','calculadora'],
+  ['PILA','pila'], ['ESTUCHE','estuche'], ['LIMPIEZA','limpieza'],
+  ['ZIPPO','encendedor'], ['ENCENDEDOR','encendedor'],
+];
 function derivar(p){
   const cat = (p.categoria||'').toUpperCase();
-  if (cat.includes('G-SHOCK')) return {tipo:'G-Shock',genero:'unisex'};
-  if (cat.includes('EDIFICE')) return {tipo:'analógico',genero:'hombre'};
-  const serie = (p.codigo.match(/^[A-Z]+/)||[''])[0];
-  for (let n=4;n>=1;n--){ const s = SERIES[serie.slice(0,n)]; if (s) return {tipo:s[0],genero:s[1]}; }
-  return {tipo:'',genero:''};
+  const a = p.atributos || {};
+  for (const [clave,tipo] of POR_CATEGORIA){
+    if (cat.includes(clave)) return {tipo, genero: a.genero || ''};
+  }
+  if (cat.includes('CASIO')){
+    const serie = (p.codigo.match(/^[A-Z]+/)||[''])[0];
+    for (let n=4;n>=1;n--){ const s = SERIES[serie.slice(0,n)];
+      if (s) return {tipo:s[0], genero: a.genero || s[1]}; }
+  }
+  // Otras marcas de reloj: el tipo lo dice la foto, no el código.
+  const tipo = cat.includes('RELOJ')
+    ? ((a.funciones||[]).includes('calculadora') ? 'calculadora' : (a.esfera ? 'analógico' : ''))
+    : '';
+  return {tipo, genero: a.genero || ''};
 }
 function parseSpec(spec=''){
   let res=null;
@@ -258,7 +281,7 @@ const NOMBRE={libres:'algunas palabras de la búsqueda',estilo:'el estilo',tono:
 
 function buscar(f){
   let r=puntuar(f);
-  if(r.length) return {resultados:r.slice(0,8),soltados:[]};
+  if(r.length) return {resultados:r,soltados:[]};
   const activos=ORDEN.filter(k=>{const v=f[k];
     return Array.isArray(v)?v.length>0:(v!==''&&v!=null&&v!==false);});
   const sin=(g,k)=>({...g,[k]:k==='precio_max'?null:k==='agua'?false:k==='libres'?[]:''});
@@ -266,17 +289,20 @@ function buscar(f){
     r=puntuar(sin(f,k));
     if(!r.length) continue;
     if(k==='precio_max') r.sort((x,y)=>x.p.precio-y.p.precio);
-    return {resultados:r.slice(0,8),soltados:[k]};
+    return {resultados:r,soltados:[k]};
   }
   let g={...f}, soltados=[];
   for(const k of activos){ soltados.push(k); g=sin(g,k); r=puntuar(g);
-    if(r.length) return {resultados:r.slice(0,8),soltados}; }
+    if(r.length) return {resultados:r,soltados}; }
   return {resultados:[],soltados};
 }
 
 const CLP=n=>'$'+n.toLocaleString('es-CL');
+const POR_PAGINA = 8;
+let ULTIMO = null, PAGINA = 0;
+
 function pintar(f){
-  const {resultados,soltados}=buscar(f);
+  ULTIMO = buscar(f); ULTIMO.f = f; PAGINA = 0;
   const tags=[];
   ['tipo','genero','correa','tono','estilo'].forEach(k=>{if(f[k])tags.push(f[k]);});
   if(f.precio_max) tags.push('hasta '+CLP(f.precio_max));
@@ -286,19 +312,27 @@ function pintar(f){
   document.getElementById('leyenda').innerHTML='Entendí: '+(tags.length
     ? tags.map(t=>`<span class="tag">${t}</span>`).join('')
     : '<span class="tag">búsqueda abierta</span>');
+  pintarPagina();
+}
 
+function pintarPagina(){
+  const {resultados,soltados,f}=ULTIMO;
   const cont=document.getElementById('resultados');
   if(!resultados.length){
     cont.innerHTML='<div class="vacio">No tengo nada en el catálogo que se acerque a eso.</div>'; return;
   }
   let aviso='';
-  if(soltados.includes('precio_max')){
-    const min=Math.min(...resultados.map(r=>r.p.precio));
-    aviso=`<div class="aviso">Bajo ${CLP(f.precio_max)} no hay nada que sirva. Lo más económico parte en <strong>${CLP(min)}</strong>.</div>`;
-  } else if(soltados.length){
-    aviso=`<div class="aviso">No hay exactamente eso. Solté <strong>${NOMBRE[soltados[soltados.length-1]]}</strong> y esto es lo más parecido.</div>`;
+  if(PAGINA===0){
+    if(soltados.includes('precio_max')){
+      const min=Math.min(...resultados.map(r=>r.p.precio));
+      aviso=`<div class="aviso">Bajo ${CLP(f.precio_max)} no hay nada que sirva. Lo más económico parte en <strong>${CLP(min)}</strong>.</div>`;
+    } else if(soltados.length){
+      aviso=`<div class="aviso">No hay exactamente eso. Solté <strong>${NOMBRE[soltados[soltados.length-1]]}</strong> y esto es lo más parecido.</div>`;
+    }
   }
-  cont.innerHTML=aviso+resultados.map(r=>{
+  const total=resultados.length, paginas=Math.ceil(total/POR_PAGINA);
+  const desde=PAGINA*POR_PAGINA;
+  const fichas=resultados.slice(desde, desde+POR_PAGINA).map(r=>{
     const a=r.p.a;
     const desc = a.descripcion ? a.descripcion
       : [r.p.tipo,a.correa&&'correa '+a.correa,a.tono,
@@ -308,9 +342,11 @@ function pintar(f){
       ? `<img class="foto" loading="lazy" src="${r.p.foto}" alt="${r.p.codigo}"
              onerror="this.style.visibility='hidden'">`
       : '<div class="foto"></div>';
+    const cat=(r.p.categoria||'').split('/').pop().trim();
     return `<div class="ficha">
       ${img}
       <div class="cuerpo">
+        ${cat?`<div class="cat">${cat}</div>`:''}
         <div class="codigo">${r.p.codigo}</div>
         <div class="attrs">${desc}</div>
         ${r.razones.length?`<div class="porque">Coincide en: ${r.razones.join(', ')}</div>`:''}
@@ -318,6 +354,20 @@ function pintar(f){
       <div class="precio">${CLP(r.p.precio)}<small>+ IVA</small></div>
     </div>`;
   }).join('');
+
+  const pager = paginas>1 ? `<div class="pager">
+      <button id="ant" ${PAGINA===0?'disabled':''}>←</button>
+      <span>${desde+1}–${Math.min(desde+POR_PAGINA,total)} de ${total}</span>
+      <button id="sig" ${PAGINA>=paginas-1?'disabled':''}>→</button>
+    </div>` : '';
+
+  cont.innerHTML=aviso+fichas+pager;
+  const ant=document.getElementById('ant'), sig=document.getElementById('sig');
+  if(ant) ant.onclick=()=>{ if(PAGINA>0){PAGINA--; pintarPagina(); scrollArriba();} };
+  if(sig) sig.onclick=()=>{ if(PAGINA<paginas-1){PAGINA++; pintarPagina(); scrollArriba();} };
+}
+function scrollArriba(){
+  document.getElementById('resultados').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 const EJEMPLOS=['reloj calculadora con correa de metal','reloj de mujer dorado elegante',
