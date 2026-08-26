@@ -101,13 +101,19 @@ async function interpretar(frase) {
   return JSON.parse(limpio.slice(limpio.indexOf('{')));
 }
 
+const CRITERIOS = ['tipo','genero','correa','tono','estilo'];
+function hayCriterios(f){
+  return CRITERIOS.some(k => f[k]) || f.agua || f.precio_max != null || f.precio_min != null;
+}
+
 // ── Puntaje ──────────────────────────────────────────────────────────────────
 function puntuar(productos, f) {
   const out = [];
   for (const p of productos) {
     const a = p.a;
-    // Base 1: sin ningún filtro activo todo producto sigue siendo candidato.
-    let pts = 1, razones = [], fuera = false;
+    // Punto base solo si la consulta no pidió nada. Si pidió algo y el producto
+    // no cumple ni una condición, no tiene por qué aparecer.
+    let pts = hayCriterios(f) ? 0 : 1, razones = [], fuera = false;
 
     if (f.tipo) {
       if (p.tipo === f.tipo) { pts += 5; razones.push(f.tipo); }

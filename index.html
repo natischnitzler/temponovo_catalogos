@@ -192,10 +192,18 @@ function parseSpec(spec=''){
 }
 
 let BASE = [];
+const CRITERIOS=['tipo','genero','correa','tono','estilo'];
+function hayCriterios(f){
+  return CRITERIOS.some(k=>f[k]) || f.agua || f.precio_max!=null || f.precio_min!=null
+      || (f.libres && f.libres.length>0);
+}
 function puntuar(f){
   const out=[];
   for(const p of BASE){
-    const a=p.a; let pts=1, razones=[], fuera=false;
+    const a=p.a;
+    // Punto base solo si la consulta no pidió nada. Si pidió algo y el producto
+    // no cumple ni una condición, no tiene por qué aparecer.
+    let pts=hayCriterios(f)?0:1, razones=[], fuera=false;
     if(f.tipo){
       if(p.tipo===f.tipo){pts+=5;razones.push(f.tipo);}
       else if(['calculadora','databank','G-Shock','despertador','reloj mural'].includes(f.tipo)) fuera=true;
@@ -229,10 +237,12 @@ function puntuar(f){
     if(f.libres && f.libres.length){
       const texto = ((a.descripcion||'')+' '+(a.patron||'')+' '+(a.funciones||[]).join(' ')+' '+p.nombre)
         .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      let calzo=false;
       for(const w of f.libres){
         const raiz = w.replace(/(es|s)$/,'');
-        if(raiz.length>2 && texto.includes(raiz)){ pts+=4; razones.push(w); }
+        if(raiz.length>2 && texto.includes(raiz)){ pts+=4; razones.push(w); calzo=true; }
       }
+      if(!calzo) fuera=true;   // pidió una palabra concreta y este no la tiene
     }
     if(f.precio_max!=null){ if(p.precio>f.precio_max) fuera=true; else pts+=1; }
     if(f.precio_min!=null && p.precio<f.precio_min) fuera=true;
