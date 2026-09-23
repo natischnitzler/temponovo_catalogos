@@ -22,7 +22,11 @@ jobs:
           key: imagenes-cache-${{ runner.os }}
           restore-keys: imagenes-cache-
       - name: Instalar ghostscript
-        run: sudo apt-get install -y ghostscript
+        # Solo se usa para comprimir los PDF; si falla, el script sigue sin comprimir.
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ghostscript
       - name: Instalar dependencias
         run: npm install
       - name: Generar y subir catálogos
